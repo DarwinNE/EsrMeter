@@ -69,23 +69,22 @@ remdrL          equ     37
 
 ; aHH:aHL:aLH:aLL*bH:bL -> a6:a5:aHH:aHL:aLH:aLL
 
-aLL  equ 40
-aLH  equ 41
-aHL  equ 42
-aHH  equ 43
-a5  equ 44
-a6  equ 45
+aLL             equ 40
+aLH             equ 41
+aHL             equ 42
+aHH             equ 43
+a5              equ 44
+a6              equ 45
 
-bL  equ 46
-bH  equ 47
+bL              equ 46
+bH              equ 47
 
-c1  equ 48
-c2  equ 49
-c3  equ 4A
-c4  equ 4B
+c1              equ 48
+c2              equ 49
+c3              equ 4A
+c4              equ 4B
 
-bitcnt equ 4C
-
+bitcnt          equ 4C
 
 bcd             equ     50
 ; memory used up to bcd+4 included
@@ -140,6 +139,8 @@ READV           MACRO       CTRL, STH,STL
                 ENDM
 
                 ; Write a message on the LCD display
+                ; This version is known not to work properly if the message
+                ; crosses a page.
 WRITELN         MACRO       msg
                 local       loop_ch
                 local       end_mes
@@ -228,7 +229,6 @@ MOV16FF         MACRO       DESTH, DESTL, SOURCEH, SOURCEL
                 movfw       SOURCEL
                 movwf       DESTL
                 ENDM
-                
 
 ; *****************************************************************************
 ;               Main Program
@@ -240,7 +240,6 @@ MOV16FF         MACRO       DESTH, DESTL, SOURCEH, SOURCEL
                 nop
                 org         0004
                 goto        prg
-
 
 prg
                 BANKSEL     TRISLCD
@@ -270,7 +269,7 @@ prg
                 BANKSEL     SSPCON
                 clrf        SSPCON
                 call        ConfigureAll
-                
+
                 clrf        store
                 clrf        store+1
                 clrf        store+2
@@ -298,22 +297,21 @@ loop
 
                 MOV16FF     aHH,aHL,divid0,divid1 ; Multiply times 1525
                 MOV16FF     aLH,aLL,divid2,divid3
-                movlw       0x5
+                movlw       0x5         ; Hi-byte of 1525
                 movwf       bH
-                movlw       0xF5
+                movlw       0xF5        ; Lo-byte of 1525
                 movwf       bL
-                call        mult_32_16                
-                
+                call        mult_32_16
+
                 ; store += divid;
                 ADD32BIT    store, store+1, store+2, store+3, aHH, aHL, aLH, aLL
                 DIV2O32BIT  store, store+1, store+2, store+3    ; store /=2;
-                
+
                 MOV16FF     bin+0, bin+1, store+0, store+1 ; bin=store (32 bit)
                 MOV16FF     bin+2, bin+3, store+2, store+3
 
                 call        output2l    ; Write the second line (ESR result)
                 goto        loop
-
 
 err_lowosc      WRITELN     text_lowosc
                 call        longdelay
@@ -339,7 +337,7 @@ llo
                 btfsc       ADCON0,GO
                 goto        $-1         ; Wait until conversion is complete
                 ADD16BIT    STOREH, STOREL, ADRESH, ADRESL
-                decfsz      CNT
+                decfsz      CNT,f
                 goto llo
 
                 return
@@ -755,7 +753,7 @@ remrlt          decfsz cnt,f
                 return
 
 ; *****************************************************************************
-;               Multiply 32-bit x 16-bit 
+;               Multiply 32-bit x 16-bit
 ; http://www.piclist.com/techref/microchip/math/mul/32x16-a.htm
 ; divid3        is the LSB, divid0 is the MSB
 ; *****************************************************************************
@@ -780,105 +778,105 @@ mult_32_16:
                 clrf    aLL
                 movfw   a6
                 movwf   c4
-                MOVF    a5,W
-                MOVWF   c3
-                MOVF    aHH,W
-                MOVWF   c2
-                MOVF    aHL,W
-                MOVWF   c1
+                movf    a5,W
+                movwf   c3
+                movf    aHH,W
+                movwf   c2
+                movf    aHL,W
+                movwf   c1
 
-                MOVLW   0x08
-                MOVWF   bitcnt
+                movlw   0x08
+                movwf   bitcnt
 
 LOOPUM3216A:
-                RRF     bL, F
-                BTFSC   STATUS, C
-                GOTO    ALUM3216NAP
-                DECFSZ  bitcnt, F
-                GOTO    LOOPUM3216A
+                rrf     bL, F
+                btfsc   STATUS, C
+                goto    ALUM3216NAP
+                decfsz  bitcnt, F
+                goto    LOOPUM3216A
 
-                MOVWF   bitcnt
+                movwf   bitcnt
 
 LOOPUM3216B:
-                RRF     bH, F
-                BTFSC   STATUS, C
-                GOTO    BLUM3216NAP
-                DECFSZ  bitcnt, F
-                GOTO    LOOPUM3216B
+                rrf     bH, F
+                btfsc   STATUS, C
+                goto    BLUM3216NAP
+                decfsz  bitcnt, F
+                goto    LOOPUM3216B
 
-                CLRF    a6
-                CLRF    a5
-                CLRF    aHH
-                CLRF    aHL
-                RETLW   0x00
+                clrf    a6
+                clrf    a5
+                clrf    aHH
+                clrf    aHL
+                retlw   0x00
 
 BLUM3216NAP:
                 BCF     STATUS, C
-                GOTO    BLUM3216NA
+                goto    BLUM3216NA
 
 ALUM3216NAP:
                 BCF     STATUS, C
-                GOTO    ALUM3216NA
+                goto    ALUM3216NA
 
 ALOOPUM3216:
-                RRF     bL, F
-                BTFSS   STATUS, C
-                GOTO    ALUM3216NA
-                MOVF   c1,W
-                ADDWF   aHL, F
-                MOVF    c2,W
-                BTFSC   STATUS, C
-                INCFSZ  c2,W
-                ADDWF   aHH, F
-                MOVF    c3,W
-                BTFSC   STATUS, C
-                INCFSZ  c3,W
-                ADDWF   a5, F
-                MOVF    c4,W
-                BTFSC   STATUS, C
-                INCFSZ  c4,W
-                ADDWF   a6, F
+                rrf     bL, F
+                btfss   STATUS, C
+                goto    ALUM3216NA
+                movf   c1,W
+                addwf   aHL, F
+                movf    c2,W
+                btfsc   STATUS, C
+                incfsz  c2,W
+                addwf   aHH, F
+                movf    c3,W
+                btfsc   STATUS, C
+                incfsz  c3,W
+                addwf   a5, F
+                movf    c4,W
+                btfsc   STATUS, C
+                incfsz  c4,W
+                addwf   a6, F
 
 ALUM3216NA:
-                RRF    a6, F
-                RRF    a5, F
-                RRF    aHH, F
-                RRF    aHL, F
-                RRF    aLH, F
-                DECFSZ  bitcnt, f
-                GOTO    ALOOPUM3216
+                rrf    a6, F
+                rrf    a5, F
+                rrf    aHH, F
+                rrf    aHL, F
+                rrf    aLH, F
+                decfsz  bitcnt, f
+                goto    ALOOPUM3216
 
-                MOVLW   0x08
-                MOVWF   bitcnt
+                movlw   0x08
+                movwf   bitcnt
 
 BLOOPUM3216:
-                RRF    bH, F
-                BTFSS  STATUS, C
-                GOTO   BLUM3216NA
-                MOVF   c1,W
-                ADDWF  aHL, F
-                MOVF   c2,W
-                BTFSC  STATUS, C
-                INCFSZ c2,W
-                ADDWF  aHH, F
-                MOVF   c3,W
-                BTFSC  STATUS, C
-                INCFSZ c3,W
-                ADDWF  a5, F
-                MOVF   c4,W
-                BTFSC  STATUS, C
-                INCFSZ c4,W
-                ADDWF  a6, F
+                rrf    bH, F
+                btfss  STATUS, C
+                goto   BLUM3216NA
+                movf   c1,W
+                addwf  aHL, F
+                movf   c2,W
+                btfsc  STATUS, C
+                incfsz c2,W
+                addwf  aHH, F
+                movf   c3,W
+                btfsc  STATUS, C
+                incfsz c3,W
+                addwf  a5, F
+                movf   c4,W
+                btfsc  STATUS, C
+                incfsz c4,W
+                addwf  a6, F
 
 BLUM3216NA
-                RRF    a6, F
-                RRF    a5, F
-                RRF    aHH, F
-                RRF    aHL, F
-                RRF    aLH, F
-                RRF    aLL, F
-                DECFSZ  bitcnt, F
-                GOTO    BLOOPUM3216
+                rrf    a6, F
+                rrf    a5, F
+                rrf    aHH, F
+                rrf    aHL, F
+                rrf    aLH, F
+                rrf    aLL, F
+                decfsz  bitcnt, F
+                goto    BLOOPUM3216
         nop
         return
 
