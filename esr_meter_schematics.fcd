@@ -1,0 +1,406 @@
+[FIDOCAD]
+FJC A 0.35
+MC 105 90 2 1 ey_libraries.opaopa0
+FCJ
+TY 106 97 4 3 0 0 0 Helvetica U1A
+TY 115 95 4 3 0 0 0 Helvetica 
+MC 105 135 2 1 ey_libraries.opaopa0
+FCJ
+TY 115 140 4 3 0 0 0 Helvetica U2
+TY 115 140 4 3 0 0 0 Helvetica 
+MC 180 135 0 0 ey_libraries.opaopa0
+FCJ
+TY 185 125 4 3 0 0 0 Helvetica U1C
+TY 190 140 4 3 0 0 0 Helvetica 
+MC 250 135 0 0 ey_libraries.opaopa0
+FCJ
+TY 260 145 4 3 0 0 0 Helvetica U1D
+TY 260 140 4 3 0 0 0 Helvetica 
+MC 145 90 0 0 ey_libraries.pasres0
+FCJ
+TY 145 94 4 3 0 0 0 Helvetica R7
+TY 139 81 4 3 0 0 0 Helvetica 10, 0,5%
+MC 175 90 0 0 ey_libraries.pasres0
+FCJ
+TY 175 80 4 3 0 0 0 Helvetica Rx
+TY 185 95 4 3 0 0 0 Helvetica 
+MC 65 130 1 0 ey_libraries.pasres0
+FCJ
+TY 55 130 4 3 0 0 0 Helvetica R1
+TY 52 135 4 3 0 0 0 Helvetica 100k
+MC 65 155 1 0 ey_libraries.pasres0
+FCJ
+TY 55 155 4 3 0 0 0 Helvetica R2
+TY 51 160 4 3 0 0 0 Helvetica 100k
+MC 105 195 0 0 ey_libraries.pasres0
+FCJ
+TY 105 180 4 3 0 0 0 Helvetica R4
+TY 105 186 4 3 0 0 0 Helvetica 12
+MC 165 155 1 0 ey_libraries.pasres0
+FCJ
+TY 170 155 4 3 0 0 0 Helvetica R8
+TY 170 160 4 3 0 0 0 Helvetica 1k
+MC 190 150 2 0 ey_libraries.pasres0
+FCJ
+TY 185 155 4 3 0 0 0 Helvetica R9
+TY 185 160 4 3 0 0 0 Helvetica 22k
+MC 220 130 0 0 ey_libraries.pasres0
+FCJ
+TY 220 116 4 3 0 0 0 Helvetica R10
+TY 220 121 4 3 0 0 0 Helvetica 10k
+MC 220 140 0 0 ey_libraries.pasres0
+FCJ
+TY 214 143 4 3 0 0 0 Helvetica R11
+TY 214 148 4 3 0 0 0 Helvetica 47k
+MC 245 120 0 0 ey_libraries.pasres0
+FCJ
+TY 243 105 4 3 0 0 0 Helvetica R12
+TY 243 110 4 3 0 0 0 Helvetica 10k
+MC 85 195 0 0 ey_libraries.opaopa0
+FCJ
+TY 85 180 4 3 0 0 0 Helvetica U1B
+TY 95 200 4 3 0 0 0 Helvetica 
+MC 190 90 3 0 ey_libraries.pascap1
+FCJ
+TY 190 80 4 3 0 0 0 Helvetica Cx
+TY 200 95 4 3 0 0 0 Helvetica 
+LI 140 90 120 90 0
+LI 165 90 160 95 0
+LI 215 90 235 90 0
+LI 235 90 235 100 0
+MC 235 100 0 0 ey_libraries.refpnt0
+MC 80 95 1 0 ey_libraries.pascap0
+FCJ
+TY 75 78 4 3 0 0 0 Helvetica C1
+TY 75 84 4 3 0 0 0 Helvetica 4.7µ
+LI 95 85 95 75 0
+LI 95 75 120 75 0
+LI 120 75 120 90 0
+SA 120 90 0
+SA 135 90 0
+MC 135 95 1 1 576
+FCJ
+TY 117 105 4 3 0 0 0 Helvetica U3A
+TY 145 100 4 3 0 0 0 Helvetica 
+MC 160 95 1 0 576
+FCJ
+TY 170 105 4 3 0 0 0 Helvetica U3B
+TY 170 100 4 3 0 0 0 Helvetica 
+MC 210 95 1 0 576
+FCJ
+TY 220 105 4 3 0 0 0 Helvetica U3C
+TY 220 100 4 3 0 0 0 Helvetica 
+LI 135 115 135 120 0
+LI 135 120 210 120 0
+LI 210 120 210 115 0
+LI 160 115 160 120 0
+SA 160 120 0
+LI 160 120 160 130 0
+LI 160 130 170 130 0
+SA 160 120 0
+LI 240 140 230 140 0
+LI 240 130 230 130 0
+LI 265 135 265 120 0
+LI 265 120 255 120 0
+LI 240 120 235 120 0
+LI 235 120 235 130 0
+SA 235 130 0
+SA 235 140 0
+LI 215 130 210 130 0
+LI 210 130 210 140 0
+LI 215 140 210 140 0
+LI 210 135 195 135 0
+SA 210 135 0
+SA 195 135 0
+LI 195 135 195 150 0
+LI 180 150 165 150 0
+LI 170 140 165 140 0
+LI 165 140 165 150 0
+SA 165 150 0
+MC 165 165 0 0 ey_libraries.refpnt0
+MC 115 220 0 0 ey_libraries.refpnt0
+LI 115 195 115 220 0
+LI 75 190 75 145 0
+LI 65 145 65 150 0
+LI 65 140 65 145 0
+LI 75 200 75 210 0
+LI 75 210 100 210 0
+SA 100 195 0
+LI 105 142 105 150 0
+LI 105 150 110 150 0
+LI 110 150 110 140 0
+LI 65 165 65 175 0
+SA 65 175 0
+LI 65 125 65 65 0
+SA 65 65 0
+SA 65 145 0
+LI 255 65 255 130 0
+SA 255 65 0
+LI 255 140 255 175 0
+SA 255 175 0
+MC 235 145 1 0 576
+FCJ
+TY 243 155 4 3 0 0 0 Helvetica U3D
+TY 245 150 4 3 0 0 0 Helvetica 
+MC 235 165 0 0 ey_libraries.refpnt0
+LI 135 95 135 90 0
+LI 235 145 235 140 0
+RV 170 75 200 100 0
+FCJ 2 0
+LI 125 135 125 185 0
+LI 125 185 215 185 0
+LI 215 185 215 155 0
+LI 215 155 230 155 0
+LI 125 135 120 135 0
+PL 50 65 270 65 1 0
+PL 50 175 335 175 1 0
+MC 85 150 0 0 ey_libraries.refpnt0
+LI 95 140 85 140 0
+LI 85 110 85 150 0
+LI 95 125 95 130 0
+MC 85 100 1 0 ey_libraries.pasres0
+FCJ
+TY 75 102 4 3 0 0 0 Helvetica R3
+TY 74 108 4 3 0 0 0 Helvetica 47k
+SA 85 140 0
+LI 95 125 95 95 0
+SA 95 95 0
+SA 85 95 0
+LI 65 120 110 120 0
+LI 110 120 110 130 0
+MC 125 125 1 0 ey_libraries.pasres0
+FCJ
+TY 130 125 4 3 0 0 0 Helvetica R6
+TY 130 131 4 3 0 0 0 Helvetica 620
+LI 125 120 110 120 0
+SA 110 120 0
+LI 110 139 110 175 0
+SA 110 175 0
+SA 110 150 0
+LI 95 95 85 95 0
+LI 265 135 270 135 0
+SA 265 135 0
+MC 275 135 0 0 ey_libraries.pasres0
+FCJ
+TY 270 126 4 3 0 0 0 Helvetica R13
+TY 269 139 4 3 0 0 0 Helvetica 5.1k
+MC 100 205 2 0 ey_libraries.pascap0
+FCJ
+TY 107 200 4 3 0 0 0 Helvetica C3
+TY 116 200 4 3 0 0 0 Helvetica 10n
+MC 295 160 0 0 ey_libraries.refpnt0
+SA 285 135 0
+MC 45 95 0 0 ey_libraries.refpnt1
+FCJ
+TY 31 98 4 3 0 0 0 Helvetica 100mV pk/pk
+TY 39 87 4 3 0 0 0 Helvetica Input
+LI 70 95 50 95 0
+LI 290 135 285 135 0
+SA 65 120 0
+SA 125 135 0
+LI 140 105 145 105 0
+LI 145 105 145 240 0
+FCJ 0 0 3 1 0 1
+TY 147 235 4 3 0 0 0 Helvetica A
+TY 150 115 4 3 0 0 0 Helvetica 
+LI 155 105 150 105 0
+LI 150 105 150 230 0
+FCJ 0 0 3 1 0 1
+TY 152 224 4 3 0 0 0 Helvetica B
+TY 155 115 4 3 0 0 0 Helvetica 
+LI 205 105 200 105 0
+LI 200 105 200 220 0
+FCJ 0 0 3 1 0 1
+TY 202 205 4 3 0 0 0 Helvetica C
+TY 205 115 4 3 0 0 0 Helvetica 
+LI 75 145 65 145 0
+MC 160 90 2 0 ey_libraries.refpnt1
+MC 165 90 0 0 ey_libraries.refpnt1
+LI 165 90 160 90 0
+LI 205 90 210 95 0
+MC 210 90 2 1 ey_libraries.refpnt1
+MC 205 90 0 1 ey_libraries.refpnt1
+LI 205 90 210 90 0
+TY 227 59 4 3 0 0 0 Helvetica 5V
+TY 273 177 4 3 0 0 0 Helvetica 0V
+TY 120 220 4 3 0 0 0 Helvetica 2.5V
+MC 85 165 1 0 ey_libraries.pascap0
+FCJ
+TY 94 159 4 3 0 0 0 Helvetica C2
+TY 93 164 4 3 0 0 0 Helvetica 100n
+SA 75 165 0
+LI 90 165 90 175 0
+SA 90 175 0
+TY 95 35 4 3 0 0 0 Helvetica U1: TLC084
+TY 95 40 4 3 0 0 0 Helvetica U2: LM311
+TY 95 45 4 3 0 0 0 Helvetica U3: CD4066
+TY 141 40 4 3 0 0 0 Helvetica 100nF decoupling on each power supply
+MC 105 210 0 0 ey_libraries.pasres0
+FCJ
+TY 100 215 4 3 0 0 0 Helvetica R5
+TY 100 220 4 3 0 0 0 Helvetica 12
+MC 285 145 2 0 ey_libraries.pascap0
+FCJ
+TY 275 150 4 3 0 0 0 Helvetica C4
+TY 270 155 4 3 0 0 0 Helvetica 1.5µ
+SA 100 210 0
+SA 115 210 0
+RV 220 210 265 295 0
+FCJ 0 1
+TY 225 215 4 3 0 0 0 Helvetica U5
+TY 225 220 4 3 0 0 0 Helvetica PIC16F690
+LI 200 220 220 220 0
+FCJ 0 0 3 2 0 1
+TY 205 215 4 3 0 0 0 Helvetica RB6
+TY 205 230 4 3 0 0 0 Helvetica 
+LI 150 230 220 230 0
+FCJ 0 0 3 2 0 1
+TY 205 225 4 3 0 0 0 Helvetica RB5
+TY 155 240 4 3 0 0 0 Helvetica 
+LI 145 240 220 240 0
+FCJ 0 0 3 2 0 1
+TY 205 235 4 3 0 0 0 Helvetica RB4
+TY 150 250 4 3 0 0 0 Helvetica 
+MC 325 140 2 1 ey_libraries.opaopa0
+FCJ
+TY 330 145 4 3 0 0 0 Helvetica U4
+TY 335 135 4 3 0 0 0 Helvetica 
+MC 295 135 0 0 ey_libraries.pasres0
+FCJ
+TY 290 126 4 3 0 0 0 Helvetica R
+TY 295 140 4 3 0 0 0 Helvetica 4.7k
+LI 305 135 315 135 0
+LI 285 150 285 175 0
+MC 320 120 0 0 ey_libraries.pasres0
+FCJ
+TY 315 111 4 3 0 0 0 Helvetica R
+TY 320 125 4 3 0 0 0 Helvetica 47k
+LI 310 135 310 120 0
+LI 310 120 315 120 0
+LI 330 120 345 120 0
+LI 345 120 345 140 0
+LI 340 140 345 140 0
+SA 310 135 0
+SA 345 140 0
+MC 300 155 0 0 ey_libraries.pasres0
+FCJ
+TY 295 146 4 3 0 0 0 Helvetica R
+TY 300 160 4 3 0 0 0 Helvetica 10k
+LI 295 155 295 160 0
+MC 320 160 1 0 ey_libraries.pasres0
+FCJ
+TY 325 160 4 3 0 0 0 Helvetica R
+TY 325 165 4 3 0 0 0 Helvetica 4.7k
+LI 320 155 310 155 0
+LI 315 145 310 145 0
+LI 310 145 310 155 0
+SA 310 155 0
+LI 320 170 320 175 0
+SA 320 175 0
+SA 285 175 0
+LI 345 140 345 240 0
+LI 345 240 335 240 0
+MC 325 240 0 0 ey_libraries.pasres0
+FCJ
+TY 320 231 4 3 0 0 0 Helvetica R
+TY 325 245 4 3 0 0 0 Helvetica 5.1k
+LI 320 240 305 240 0
+MC 315 260 2 0 ey_libraries.pascap0
+FCJ
+TY 325 265 4 3 0 0 0 Helvetica C
+TY 325 270 4 3 0 0 0 Helvetica 1µ
+SA 315 240 0
+PL 55 310 340 310 1 0
+LI 315 265 315 310 0
+SA 315 310 0
+TY 245 310 4 3 0 0 0 Helvetica 0V
+LI 240 295 240 310 0
+PL 130 195 310 195 1 0
+LI 240 195 240 210 0
+SA 240 195 0
+TY 273 189 4 3 0 0 0 Helvetica 5V
+SA 240 310 0
+MC 290 205 1 0 ey_libraries.pasres0
+FCJ
+TY 299 200 4 3 0 0 0 Helvetica R
+TY 300 205 4 3 0 0 0 Helvetica 1.2k
+LI 290 195 290 200 0
+MC 290 260 2 0 ey_libraries.pascap0
+FCJ
+TY 300 255 4 3 0 0 0 Helvetica C
+TY 300 260 4 3 0 0 0 Helvetica 1µ
+LI 290 265 290 310 0
+SA 290 310 0
+SA 305 240 0
+LI 295 240 265 240 0
+FCJ 0 0 3 2 0 1
+TY 265 235 4 3 0 0 0 Helvetica RA0
+TY 305 250 4 3 0 0 0 Helvetica 
+SA 295 240 0
+LI 305 240 295 240 0
+FCJ 0 0 3 2 2 1
+TY 300 235 4 3 0 0 0 Helvetica J2
+TY 310 250 4 3 0 0 0 Helvetica 
+LI 315 250 315 240 0
+SA 290 195 0
+LI 290 250 290 215 0
+LI 290 225 285 225 0
+LI 275 225 265 225 0
+FCJ 0 0 3 2 0 1
+TY 265 220 4 3 0 0 0 Helvetica RA1
+TY 280 235 4 3 0 0 0 Helvetica 
+SA 285 225 0
+SA 290 225 0
+SA 275 225 0
+LI 285 225 275 225 0
+FCJ 0 0 3 2 2 1
+TY 280 220 4 3 0 0 0 Helvetica J1
+TY 290 235 4 3 0 0 0 Helvetica 
+TY 95 50 4 3 0 0 0 Helvetica U4: CA3130
+TY 95 55 4 3 0 0 0 Helvetica U5: PIC16F690
+RV 55 250 175 275 0
+FCJ 0 1
+TY 90 240 4 3 0 0 0 Helvetica LCD 12x2
+TY 90 245 4 3 0 0 0 Helvetica HD44780
+LI 220 255 175 255 0
+LI 220 265 175 265 0
+LI 220 270 175 270 0
+LI 220 260 175 260 0
+LI 165 195 165 250 0
+SA 165 195 0
+LI 100 275 100 310 0
+LI 105 275 105 310 0
+LI 110 275 110 310 0
+LI 115 275 115 310 0
+TY 170 253 3 2 0 0 0 Helvetica D4
+TY 211 251 3 2 0 0 0 Helvetica RC4
+LI 165 275 165 280 0
+LI 165 280 220 280 0
+LI 160 275 160 285 0
+LI 160 285 220 285 0
+LI 220 290 155 290 0
+LI 155 290 155 275 0
+TY 211 256 3 2 0 0 0 Helvetica RC5
+TY 170 258 3 2 0 0 0 Helvetica D5
+TY 170 263 3 2 0 0 0 Helvetica D6
+TY 211 261 3 2 0 0 0 Helvetica RC6
+TY 211 266 3 2 0 0 0 Helvetica RC7
+TY 170 268 3 2 0 0 0 Helvetica D7
+TY 153 271 3 2 0 0 0 Helvetica E
+TY 157 271 3 2 0 0 0 Helvetica R/S
+TY 164 271 3 2 0 0 0 Helvetica R/W
+TY 98 271 3 2 0 0 0 Helvetica D0
+TY 103 271 3 2 0 0 0 Helvetica D1
+TY 108 271 3 2 0 0 0 Helvetica D2
+TY 113 271 3 2 0 0 0 Helvetica D3
+TY 164 251 3 2 0 0 0 Helvetica 5V
+SA 115 310 0
+SA 110 310 0
+SA 105 310 0
+SA 100 310 0
+LI 140 275 140 310 0
+SA 140 310 0
+TY 137 271 3 2 0 0 0 Helvetica GND
+TY 141 45 4 3 0 0 0 Helvetica One 470µF capacitor on the supply rails 
+RP 60 255 169 270 8
+RV 60 255 169 270 15
