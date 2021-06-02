@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE eagle SYSTEM "eagle.dtd">
-<eagle version="7.7.0">
+<eagle version="9.6.2">
 <drawing>
 <settings>
-<setting alwaysvectorfont="yes"/>
+<setting alwaysvectorfont="no"/>
+<setting keepoldvectorfont="yes"/>
 <setting verticaltext="up"/>
 </settings>
 <grid distance="0.1" unitdist="inch" unit="inch" style="lines" multiple="1" display="no" altdistance="0.01" altunitdist="inch" altunit="inch"/>
@@ -12316,7 +12317,7 @@ by exp-lbrs.ulp</description>
 <part name="IC7" library="00-personale" deviceset="TS5A3159" device=""/>
 <part name="R6" library="00-personale" deviceset="R-EU_" device="R0805" value="12"/>
 <part name="R7" library="00-personale" deviceset="R-EU_" device="R0805" value="12"/>
-<part name="C2" library="00-personale" deviceset="C-EU" device="C0805K" value="10n"/>
+<part name="C2" library="00-personale" deviceset="C-EU" device="C0805K" value="33n"/>
 <part name="R8" library="00-personale" deviceset="R-EU_" device="R0805" value="100k"/>
 <part name="R9" library="00-personale" deviceset="R-EU_" device="R0805" value="100k"/>
 <part name="C3" library="00-personale" deviceset="C-EU" device="C0805K" value="100n"/>
@@ -12334,8 +12335,8 @@ by exp-lbrs.ulp</description>
 <part name="P+8" library="supply1" deviceset="V+" device=""/>
 <part name="IC3" library="00-personale" deviceset="TLV3201" device=""/>
 <part name="R15" library="00-personale" deviceset="R-EU_" device="R0805" value="10k"/>
-<part name="R16" library="00-personale" deviceset="R-EU_" device="R0805" value="47k"/>
-<part name="R17" library="00-personale" deviceset="R-EU_" device="R0805" value="10k"/>
+<part name="R16" library="00-personale" deviceset="R-EU_" device="R0805" value="10k"/>
+<part name="R17" library="00-personale" deviceset="R-EU_" device="R0805" value="51k"/>
 <part name="GND7" library="cronobal-test03" deviceset="GND" device=""/>
 <part name="P-9" library="supply1" deviceset="V-" device=""/>
 <part name="R18" library="00-personale" deviceset="R-EU_" device="R0805" value="47k"/>
@@ -12368,7 +12369,7 @@ by exp-lbrs.ulp</description>
 <part name="D3" library="00-personale" deviceset="4148" device=""/>
 <part name="C7" library="00-personale" deviceset="C-EU" device="C0805K" value="4u7"/>
 <part name="C6" library="00-personale" deviceset="C-EU" device="C0805K" value="4u7"/>
-<part name="R22" library="00-personale" deviceset="R-EU_" device="R0805" value="220k"/>
+<part name="R22" library="00-personale" deviceset="R-EU_" device="R0805" value="4.7k"/>
 <part name="R1" library="00-personale" deviceset="R-EU_" device="R0805" value="4k7"/>
 <part name="R14" library="00-personale" deviceset="R-EU_" device="R0805" value="100k"/>
 <part name="C4" library="00-personale" deviceset="C-EU" device="C0805K" value="1u"/>
@@ -12666,19 +12667,42 @@ by exp-lbrs.ulp</description>
 <attribute name="VALUE" x="71.12" y="22.86" size="1.778" layer="96"/>
 <attribute name="VALUE" x="71.12" y="22.86" size="1.778" layer="96"/>
 </instance>
-<instance part="IC1" gate="A" x="20.32" y="53.34"/>
-<instance part="IC1" gate="B" x="68.58" y="60.96"/>
-<instance part="IC2" gate="A" x="162.56" y="55.88"/>
-<instance part="IC2" gate="B" x="200.66" y="53.34"/>
-<instance part="IC1" gate="P" x="-17.78" y="55.88"/>
-<instance part="IC3" gate="P" x="-12.7" y="55.88"/>
-<instance part="IC2" gate="P" x="-7.62" y="55.88"/>
-<instance part="IC8" gate="P" x="-2.54" y="55.88"/>
+<instance part="IC1" gate="A" x="20.32" y="53.34" smashed="yes">
+<attribute name="NAME" x="21.59" y="56.515" size="1.016" layer="95" ratio="12"/>
+<attribute name="VALUE" x="21.59" y="48.895" size="1.016" layer="96" ratio="12"/>
+</instance>
+<instance part="IC1" gate="B" x="68.58" y="60.96" smashed="yes">
+<attribute name="NAME" x="69.85" y="64.135" size="1.016" layer="95" ratio="12"/>
+<attribute name="VALUE" x="69.85" y="56.515" size="1.016" layer="96" ratio="12"/>
+</instance>
+<instance part="IC2" gate="A" x="162.56" y="55.88" smashed="yes">
+<attribute name="NAME" x="163.83" y="59.055" size="1.016" layer="95" ratio="12"/>
+<attribute name="VALUE" x="163.83" y="51.435" size="1.016" layer="96" ratio="12"/>
+</instance>
+<instance part="IC2" gate="B" x="200.66" y="53.34" smashed="yes">
+<attribute name="NAME" x="201.93" y="56.515" size="1.016" layer="95" ratio="12"/>
+<attribute name="VALUE" x="201.93" y="48.895" size="1.016" layer="96" ratio="12"/>
+</instance>
+<instance part="IC1" gate="P" x="-17.78" y="55.88" smashed="yes">
+<attribute name="NAME" x="-17.272" y="53.594" size="1.016" layer="95" ratio="12" rot="R90"/>
+</instance>
+<instance part="IC3" gate="P" x="-12.7" y="55.88" smashed="yes">
+<attribute name="NAME" x="-12.192" y="53.594" size="1.016" layer="95" ratio="12" rot="R90"/>
+</instance>
+<instance part="IC2" gate="P" x="-7.62" y="55.88" smashed="yes">
+<attribute name="NAME" x="-7.112" y="53.594" size="1.016" layer="95" ratio="12" rot="R90"/>
+</instance>
+<instance part="IC8" gate="P" x="-2.54" y="55.88" smashed="yes">
+<attribute name="NAME" x="-2.032" y="53.594" size="1.016" layer="95" ratio="12" rot="R90"/>
+</instance>
 <instance part="J2" gate="G$3" x="71.12" y="-2.54" smashed="yes" rot="R180">
 <attribute name="NAME" x="55.88" y="-2.54" size="1.778" layer="95" rot="R180"/>
 <attribute name="VALUE" x="55.88" y="1.27" size="1.778" layer="96" rot="R180"/>
 </instance>
-<instance part="J1" gate="G$1" x="144.78" y="-2.54" rot="R180"/>
+<instance part="J1" gate="G$1" x="144.78" y="-2.54" smashed="yes" rot="R180">
+<attribute name="NAME" x="132.08" y="-2.54" size="1.778" layer="95" rot="R180"/>
+<attribute name="VALUE" x="132.08" y="1.27" size="1.778" layer="96" rot="R180"/>
+</instance>
 <instance part="C18" gate="G$1" x="-2.54" y="27.94" smashed="yes" rot="R180">
 <attribute name="NAME" x="-2.286" y="28.194" size="0.8128" layer="95" ratio="15" rot="R270"/>
 <attribute name="VALUE" x="-3.556" y="28.194" size="0.8128" layer="96" ratio="15" rot="R270"/>
@@ -12691,10 +12715,22 @@ by exp-lbrs.ulp</description>
 <attribute name="NAME" x="109.474" y="22.606" size="0.8128" layer="95" ratio="15" rot="R180"/>
 <attribute name="VALUE" x="109.474" y="18.796" size="0.8128" layer="96" ratio="15" rot="R180"/>
 </instance>
-<instance part="JP2" gate="G$1" x="58.42" y="45.72"/>
-<instance part="JP1" gate="G$1" x="58.42" y="40.64"/>
-<instance part="JP4" gate="JP" x="182.88" y="20.32"/>
-<instance part="JP3" gate="JP" x="182.88" y="25.4"/>
+<instance part="JP2" gate="G$1" x="58.42" y="45.72" smashed="yes">
+<attribute name="NAME" x="58.42" y="46.736" size="0.6096" layer="95" ratio="15"/>
+<attribute name="VALUE" x="58.42" y="43.942" size="0.6096" layer="96" ratio="15"/>
+</instance>
+<instance part="JP1" gate="G$1" x="58.42" y="40.64" smashed="yes">
+<attribute name="NAME" x="58.42" y="41.656" size="0.6096" layer="95" ratio="15"/>
+<attribute name="VALUE" x="58.42" y="38.862" size="0.6096" layer="96" ratio="15"/>
+</instance>
+<instance part="JP4" gate="JP" x="182.88" y="20.32" smashed="yes">
+<attribute name="NAME" x="182.88" y="21.336" size="0.6096" layer="95" ratio="15"/>
+<attribute name="VALUE" x="182.88" y="18.542" size="0.6096" layer="96" ratio="15"/>
+</instance>
+<instance part="JP3" gate="JP" x="182.88" y="25.4" smashed="yes">
+<attribute name="NAME" x="182.88" y="26.416" size="0.6096" layer="95" ratio="15"/>
+<attribute name="VALUE" x="182.88" y="23.622" size="0.6096" layer="96" ratio="15"/>
+</instance>
 <instance part="C21" gate="G$1" x="165.1" y="17.78" smashed="yes">
 <attribute name="NAME" x="167.386" y="14.986" size="0.8128" layer="95" ratio="15" rot="R90"/>
 <attribute name="VALUE" x="163.576" y="14.986" size="0.8128" layer="96" ratio="15" rot="R90"/>
