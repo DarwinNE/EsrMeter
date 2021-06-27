@@ -32,7 +32,7 @@
    __config (_INTRC_OSC_NOCLKOUT & _WDT_OFF & _PWRTE_ON & _BOREN_ON & _MCLRE_ON & _CP_OFF & _IESO_OFF & _FCMEN_OFF & _DEBUG_OFF)
 
 ; Constant
-OSC_LOTHRESHOLD equ     .100    ; Error if the ampl. A_VH is lower than this.
+OSC_LOTHRESHOLD equ     .35     ; Error if the ampl. A_VH is lower than this.
 OSC_HITHRESHOLD equ     .230    ; Error if the ampl. A_VH is higher than this.
 
 ; Control lines of the display device
@@ -83,6 +83,9 @@ divisL          equ     0x35
 remdrH          equ     0x36
 remdrL          equ     0x37
 
+LOOPCOUNT       equ     0x3C
+TESTMODE        equ     0x3D
+
 ; aHH:aHL:aLH:aLL*bH:bL -> a6:a5:aHH:aHL:aLH:aLL
 
 aLL             equ     0x40
@@ -113,17 +116,16 @@ store           equ     0x61
 indf            equ     0
 fsr             equ     4
 
-LOOPCOUNT       equ     0x3C
 NOZ             equ     0x60
 
 ; Configuration for the measurement control
 CTRLP           equ     PORTC
 TRISCTRL        equ     TRISC
-PWMPIN          equ     RC6
+PWMPIN          equ     RC2
 
 ; The value of the ESR is calculated as
 ; 10*(V_B-V_C)/(V_A-V_B)
-CTRLA           equ     RC2
+CTRLA           equ     RC6
 CTRLB           equ     RC0
 CTRLC           equ     RC1
 
@@ -145,9 +147,10 @@ LSBH            equ     0x7A
 LSBL            equ     0x7B
 
 FREQ            equ     0x7C
+DCVAL           equ     0x7D
 
 BSENSE          equ     0x7E
-BUTTON          equ     0x7F
+CHVAL           equ     0x7F
 
 ; *****************************************************************************
 ;               MACROS
@@ -289,9 +292,9 @@ text_welcome    addwf   PCL,f
 text_davide     addwf   PCL,f
                 DT      "D. Bucci 2021",0
 text_lowosc     addwf   PCL,f
-                DT      "ERROR: Low osc. ",0
+                DT      "Overload...",0
 text_hiosc      addwf   PCL,f
-                DT      "ERROR: High osc.",0
+                DT      "Oscillator high.",0
 text_reshi      addwf   PCL,f
                 DT      "Resistance high.",0
 text_esr        addwf   PCL,f
@@ -314,13 +317,57 @@ freq8           addwf   PCL,f
                 DT      "Freq = 20 kHz",0
 freq9           addwf   PCL,f
                 DT      "Freq = 50 kHz",0
-freq10           addwf   PCL,f
+freq10          addwf   PCL,f
                 DT      "Freq = 100 kHz",0  ; This fills more or less one page
 
 
                 org     0x100
 freq11          addwf   PCL,f
                 DT      "Freq = 200 kHz",0
+
+
+                ; Values of the PWM for a 5V power supply
+dclist          addwf   PCL,f
+                retlw   .0      ; not used
+                retlw   .8     ; -2V
+                retlw   .18     ; -1.5V
+                retlw   .29     ; -1V
+                retlw   .39     ; -0.5V
+                retlw   .50     ; 0V
+                retlw   .60     ; 0.5V
+                retlw   .71     ; 1V
+                retlw   .82     ; 1.5V
+                retlw   .93     ; 2V
+
+dcmenu          addwf   PCL,f
+                DT      "Choose DC bias",0
+
+dcval1          addwf   PCL,f
+                DT      "DC = -2 V",0
+
+dcval2          addwf   PCL,f
+                DT      "DC = -1.5 V",0
+
+dcval3          addwf   PCL,f
+                DT      "DC = -1 V",0
+
+dcval4          addwf   PCL,f
+                DT      "DC = -0.5 V",0
+
+dcval5          addwf   PCL,f
+                DT      "DC = 0 V (off)",0
+
+dcval6          addwf   PCL,f
+                DT      "DC = 0.5 V",0
+
+dcval7          addwf   PCL,f
+                DT      "DC = 1 V",0
+
+dcval8          addwf   PCL,f
+                DT      "DC = 1.5 V",0
+
+dcval9          addwf   PCL,f
+                DT      "DC = 2 V",0
 
 FREQUENCY = .100
 VALUE = .10736*FREQUENCY/.1000
@@ -419,67 +466,104 @@ prg
                 bcf         TRISCTRL,CTRLA
                 bcf         TRISCTRL,CTRLB
                 bcf         TRISCTRL,CTRLC
-
-
-                call        longdelay
-                call        longdelay
-                call        longdelay
-
+                bsf         TRISA,RA7       ; Button as input
+                BANKSEL     PORTA
+                clrf        TESTMODE
+                btfss       PORTA,RA7
+                bsf         TESTMODE,7
                 
-                call        functionset
-                call        displayon
-                
+
                 call        longdelay
+                call        longdelay
+                call        longdelay
+
+
                 call        functionset
                 call        displayon
 
                 call        longdelay
                 call        functionset
                 call        displayon
-    
+
+                call        longdelay
+                call        functionset
+                call        definechars
+                call        displayon
+
                 call        displayclear
                 call        displaychome
                 WRITELN     text_welcome    ; Greetings and program version.
                 movlw       0x40
                 call        displayaddrset  ; Move to the second line
                 WRITELN     text_davide     ; Copyright
-                
-                clrf        FREQ
+
+                clrf        FREQ            ; Standard values for frequency
                 movlw       0x4
-                movwf       BUTTON
-                
+                movwf       CHVAL           ; Force setting of AD9833
+
+                movlw       0x5             ; Standard value for DC (no DC)
+                movwf       DCVAL
+
                 call        ConfigureADC
                 call        ConfigureSPI
                 call        ResetAD9833
-                
+
                 call        longdelay
                 call        longdelay
                 call        longdelay
-                
+
                 clrf        store
                 clrf        store+1
                 clrf        store+2
                 clrf        store+3
-
+                call        SetPWM
                 ; Main program loop: read ADC values, calculate ESR, repeat.
 loop
-                BANKSEL     TRISCTRL
-                bsf         TRISCTRL,PWMPIN
-
                 READV       CTRLA, A_VH, A_VL ; read A, B and C
                 READV       CTRLB, B_VH, B_VL
                 READV       CTRLC, C_VH, C_VL
 
-                movfw       BUTTON
+                movfw       CHVAL       ; Update the frequency value if needed
                 addwf       FREQ,f
-                
-                call        displayclear
-                call        ChooseFreq
-                movfw       BUTTON
-                btfss       STATUS,Z
-                goto        buttonzero
 
-                ;call        output1l    ; Write the first line (debug)
+                call        displayclear
+                call        SelectFreq
+                movfw       CHVAL
+                btfss       STATUS,Z
+                goto        buttonzero  ; If the frequency has changed, do not
+                                        ; show the incomplete measurement.
+                btfss       PORTA,RA7   ; Check if the button is depressed
+                goto        ChooseDc
+
+
+                movfw       TESTMODE
+                btfss       STATUS,Z
+                goto        testloop
+
+
+
+                movfw       DCVAL
+                xorlw       0x05        ; Check if a DC is present
+                btfsc       STATUS,Z
+                goto        @nodc
+                movlw       0x0E        ; Put cursor in the top right corner
+                call        displayaddrset
+                movlw       '+'         ; Write '+DC' if appropriate
+                call        senddata
+                movlw       0x00        ; Write '+DC' if appropriate
+                call        senddata
+@nodc
+
+checkamplitudes movfw       A_VH        ; Check if the oscillator amplitude is OK.
+                sublw       OSC_LOTHRESHOLD
+                btfsc       STATUS,C
+                goto        err_lowosc
+
+                movfw       A_VH
+                sublw       OSC_HITHRESHOLD
+                btfss       STATUS,C
+                goto        err_hiosc
+
 
                 ; ESR=(B-C)/(A-B)*10
                 BANKSEL     divid0  ; Transfer B in the high 16 bits of divid
@@ -508,23 +592,52 @@ loop
 
                 MOV16FF     bin+0, bin+1, aHH, aHL
                 MOV16FF     bin+2, bin+3, aLH, aLL
-                
+
                 call        output2l    ; Write the second line (ESR result)
                 goto        loop
 
-buttonzero      clrf        BUTTON
+SetPWM          movfw       DCVAL
+                xorlw       0x05        ; Value that corresponds to DC
+                btfsc       STATUS,Z
+                goto        SetNoDC
+                BANKSEL     TRISCTRL
+                bcf         TRISCTRL, PWMPIN    ; Port PWM as output
+                movlw       0x0F
+                BANKSEL     CCP1CON
+                movwf       CCP1CON
+                movlw       .100                ; Values in  %
+                BANKSEL     PR2
+                movwf       PR2
+                movfw       DCVAL
+                call        dclist
+                BANKSEL     CCPR1L
+                movwf       CCPR1L
+                BANKSEL     T2CON
+                bsf         T2CON, TMR2ON
+                movlw       0x40
+                goto        displayaddrset      ; Strange: if I remove this,
+                ;return                         ; the program does not work!
+
+SetNoDC         BANKSEL     TRISCTRL
+                bsf         TRISCTRL, PWMPIN    ; Port PWM as input
+                return                          ; That makes sort that DC=0
+
+buttonzero      clrf        CHVAL
                 goto        loop
 
 
-err_lowosc      WRITELN     text_lowosc
+err_lowosc      call        displayclear
+                WRITELN     text_lowosc
                 call        longdelay
                 goto        loop
 
-err_hiosc       WRITELN     text_hiosc
+err_hiosc       call        displayclear
+                WRITELN     text_hiosc
                 call        longdelay
                 goto        loop
 
-err_reshi       WRITELN     text_reshi
+err_reshi       call        displayclear
+                WRITELN     text_reshi
                 call        longdelay
                 goto        loop
 
@@ -542,41 +655,43 @@ readadc
                 ADD16BIT    STOREH, STOREL, ADRESH, ADRESL
                 decfsz      CNT,f
                 goto @llo
-
                 return
+                
 
-checkamplitudes movfw       A_VH        ; Check if the oscillator amplitude is OK.
-                sublw       OSC_LOTHRESHOLD
-                btfsc      STATUS,C
-                goto       err_lowosc
+; This is a test mode end of loop. Shows on the display the value of A, B and C
+; (writing separately the high byte and the low byte for each).
 
+testloop        call        displayclear
+                movlw       'A'
+                call        senddata
                 movfw       A_VH
-                sublw       OSC_HITHRESHOLD
-                btfss      STATUS,C
-                goto       err_hiosc
-                return
-
-output1l        movfw       A_VH
                 call        write_number
-                call        sendspace
+                movlw       ','
+                call        senddata
                 movfw       A_VL
                 call        write_number
                 call        sendspace
-
+                movlw       'B'
+                call        senddata
                 movfw       B_VH
                 call        write_number
-                call        sendspace
+                movlw       ','
+                call        senddata
                 movfw       B_VL
                 call        write_number
-                call        sendspace
-
+                
+                movlw       0x40
+                call        displayaddrset  ; Move to the second line
+                movlw       'C'
+                call        senddata
                 movfw       C_VH
                 call        write_number
-                call        sendspace
+                movlw       ','
+                call        senddata
                 movfw       C_VL
                 call        write_number
                 call        sendspace
-                return
+                goto        loop
 
 output2l        movlw       0x40
                 call        displayaddrset
@@ -589,7 +704,136 @@ output2l        movlw       0x40
 ;               Ancillary routines
 ; *****************************************************************************
 
-ChooseFreq      movlw       .1
+ChooseDc        call        displayclear
+                WRITELN     dcmenu
+                movlw       0x40
+                call        displayaddrset  ; Move to the second line
+                movfw       CHVAL
+                addwf       DCVAL,f
+                clrf        CHVAL
+                ;movfw       DCVAL
+                ;call        write_number
+                call        SelectDC
+
+                call        longdelay
+
+                btfsc       PORTA,RA7
+                goto        loop
+                goto        ChooseDc
+
+SelectDC        movlw       .1
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc1
+                movlw       .2
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc2
+                movlw       .3
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc3
+                movlw       .4
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc4
+                movlw       .5
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc5
+                movlw       .6
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc6
+                movlw       .7
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc7
+                movlw       .8
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc8
+                movlw       .9
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc9
+
+                btfsc       DCVAL,7
+                goto        @sdc1
+                movlw       DCVAL
+                btfsc       STATUS,Z
+                goto        @sdc1
+
+                movlw       .8
+                subwf       DCVAL,w
+                btfss       STATUS,C
+                goto        @sdc1
+                movlw       .9
+                movwf       DCVAL
+                goto        SelectDC
+
+@sdc1
+                movlw       1               ; If we get here, DCVAL contains an
+                movwf       DCVAL           ; invalid data. Put 1.
+                goto        SelectDC
+
+
+sdc1            movlw       0x1
+                movwf       DCVAL
+                WRITELN dcval1
+                call        SetPWM
+                return
+
+sdc2            movlw       0x2
+                movwf       DCVAL
+                WRITELN dcval2
+                call        SetPWM
+                return
+
+sdc3            movlw       0x3
+                movwf       DCVAL
+                WRITELN dcval3
+                call        SetPWM
+                return
+
+sdc4            movlw       0x4
+                movwf       DCVAL
+                WRITELN dcval4
+                call        SetPWM
+                return
+
+sdc5            movlw       0x5
+                movwf       DCVAL
+                WRITELN dcval5
+                call        SetPWM
+                return
+
+sdc6            movlw       0x6
+                movwf       DCVAL
+                WRITELN dcval6
+                call        SetPWM
+                return
+
+sdc7            movlw       0x7
+                movwf       DCVAL
+                WRITELN dcval7
+                call        SetPWM
+                return
+
+sdc8            movlw       0x8
+                movwf       DCVAL
+                WRITELN dcval8
+                call        SetPWM
+                return
+
+sdc9            movlw       0x9
+                movwf       DCVAL
+                WRITELN dcval9
+                call        SetPWM
+                return
+
+
+SelectFreq      movlw       .1
                 xorwf       FREQ,w
                 btfsc       STATUS,Z
                 goto        sfreq1
@@ -633,25 +877,25 @@ ChooseFreq      movlw       .1
                 xorwf       FREQ,w
                 btfsc       STATUS,Z
                 goto        sfreq11
-                                                                                                                                
+
                 btfsc       FREQ,7
                 goto        @set1
                 movlw       FREQ
                 btfsc       STATUS,Z
                 goto        @set1
-                
+
                 movlw       .10
-                subwf       FREQ
+                subwf       FREQ,w
                 btfss       STATUS,C
                 goto        @set1
                 movlw       .11
                 movwf       FREQ
-                goto        ChooseFreq
+                goto        SelectFreq
 
 @set1
                 movlw       1               ; If we get here, FREQ contains an
                 movwf       FREQ            ; invalid data. Put 1.
-                goto        ChooseFreq
+                goto        SelectFreq
 
 sfreq1:
                 PROGFREQ    LSB1,MSB1,freq1
@@ -703,9 +947,9 @@ ConfigureADC   ; Configure the ADC, read on A0.
                 bsf         TRISA,0
                 bsf         TRISA,2
                 bsf         TRISA,3
-                
+
                 BANKSEL     ANSEL
-                bsf         ANSEL,0     ; Use as A0 as an analog input. 
+                bsf         ANSEL,0     ; Use as A0 as an analog input.
                 bsf         ANSEL,2
                 bsf         ANSEL,3
                 BANKSEL     ADCON1
@@ -791,10 +1035,10 @@ ConfigureAD9833
                 call        WriteSPI
                 call        StopReg
                 return
-                
+
 
 ; *****************************************************************************
-; Write a 24-bit number contained in bin to bin+3 (big endian) on the LCD
+; Write a 24-bit number contained in bin to bin+2 (big endian) on the LCD
 ; *****************************************************************************
 
 WRITE2DIGITS    MACRO       BB
@@ -959,7 +1203,7 @@ functionset
                                         ; switched on.
                 call    sendbyte
                 call    busywait
-                
+
 functionset2    BANKSEL DATALCD
                 bcf     DATALCD,RS
                 bcf     DATALCD,RW
@@ -986,7 +1230,7 @@ displayon
                 BANKSEL DATALCD
                 bcf     DATALCD,RS
                 bcf     DATALCD,RW
-                movlw   0x0C             ; Display on, 
+                movlw   0x0C             ; Display on,
                 call    sendbyte
                 retlw   0
 
@@ -1030,96 +1274,97 @@ displaycurdir
 ; *****************************************************************************
 ;               Delay routines for LCD
 ; *****************************************************************************
-longdelay       movlw   BUTTON          ; Skip if a button is pressed.
-                btfss   STATUS,Z
+longdelay       movlw       CHVAL          ; Skip if a button is pressed.
+                btfss       STATUS,Z
                 return
-                BANKSEL TRISA
-                bsf     TRISA,RA4
-                bsf     TRISA,RA5
+                BANKSEL     TRISA
+                bsf         TRISA,RA4
+                bsf         TRISA,RA5
+                bsf         TRISA,RA7
 
-                BANKSEL PORTA
+                BANKSEL     PORTA
+    
+                movfw       PORTA
+                movwf       BSENSE
 
-                movfw   PORTA
-                movwf   BSENSE
+                call        shortdelay
 
-                call    shortdelay
+                movfw       BSENSE
+                BANKSEL     PORTA
+                xorwf       PORTA,w
+                btfsc       STATUS,Z
+                goto        @cont
+@change
+                btfss       BSENSE,RA4
+                goto        @invpol
 
-                movfw   BSENSE
-                BANKSEL PORTA
-                xorwf   PORTA,w
-                btfsc   STATUS,Z
-                goto    @cont
+                call        shortdelay
+                btfss       PORTA,RA5
+                incf        CHVAL,f
+                btfsc       PORTA,RA5
+                decf        CHVAL,f
+                return                      ; Exit immediately
 
-@change         btfss   BSENSE,RA4
-                goto    @invpol
-                
-                call    shortdelay
-                btfss   PORTA,RA5
-                incf    BUTTON,f
-                btfsc   PORTA,RA5
-                decf    BUTTON,f
-                return                      ; Exit immediately if a button
-
-@invpol         call    shortdelay
-                btfss   PORTA,RA5
-                decf    BUTTON,f
-                btfsc   PORTA,RA5
-                incf    BUTTON,f
-                return                      ; Exit immediately if a button
+@invpol         call        shortdelay
+                btfss       PORTA,RA5
+                decf        CHVAL,f
+                btfsc       PORTA,RA5
+                incf        CHVAL,f
+                return                      ; Exit immediately
 @cont
-                BANKSEL LDR
-                decfsz  LDR,f
-                goto    longdelay
+                BANKSEL     LDR
+                decfsz      LDR,f
+                goto        longdelay
                 return
 
 middelay
-                BANKSEL LDR
-                movlw   0x40
-                movwf   LDR
-                call    shortdelay
-                decfsz  LDR,f
-                goto    $-2
+                BANKSEL     LDR
+                movlw       0x40
+                movwf       LDR
+                call        shortdelay
+                decfsz      LDR,f
+                goto        $-2
                 return
 
 shortdelay
-                BANKSEL SDR
-                decfsz  SDR,f
-                goto    $-1
+                BANKSEL     SDR
+                decfsz      SDR,f
+                goto        $-1
                 return
 
-busywait        
-                BANKSEL TRISLCD
-                ;movlw   0xF0            ; Set all the port (4 bits) as inputs
-                clrf    TMP
-                bsf     TRISLCD, DATA4
-                bsf     TRISLCD, DATA5
-                bsf     TRISLCD, DATA6
-                bsf     TRISLCD, DATA7
-                BANKSEL DATALCD
-                bcf     DATALCD, RS     ; RS to 0
-                bsf     DATALCD, RW     ; RW to 1: Read
+busywait
+                BANKSEL     TRISLCD
+                ;movlw      0xF0        ; Set all the port (4 bits) as inputs
+                clrf        TMP
+                bsf         TRISLCD, DATA4
+                bsf         TRISLCD, DATA5
+                bsf         TRISLCD, DATA6
+                bsf         TRISLCD, DATA7
+                BANKSEL     DATALCD
+                bcf         DATALCD, RS     ; RS to 0
+                bsf         DATALCD, RW     ; RW to 1: Read
                 nop
-                bsf     DATALCD, E      ; Raise E line
-                bcf     STATUS,C
-                btfsc   DATALCD, DATA7
-                bsf     STATUS,C
-                bcf     DATALCD, E
-                nop
-                nop
-                bsf     DATALCD, E      ; Raise E line
+                bsf         DATALCD, E      ; Raise E line
+                bcf         STATUS,C
+                btfsc       DATALCD, DATA7
+                bsf         STATUS,C
+                bcf         DATALCD, E
                 nop
                 nop
+                bsf         DATALCD, E      ; Raise E line
                 nop
-                bcf     DATALCD, E
-                btfsc   STATUS, C       ; Test the carry
-                goto    busywait        ; If busy, continue waiting
-                BANKSEL TRISLCD
-                bcf     TRISLCD, DATA4
-                bcf     TRISLCD, DATA5
-                bcf     TRISLCD, DATA6
-                bcf     TRISLCD, DATA7
-                BANKSEL DATALCD
-                bcf     DATALCD, RW     ; RW to 1: Read
+                nop
+                nop
+                bcf         DATALCD, E
+                btfsc       STATUS, C       ; Test the carry
+                goto        busywait        ; If busy, continue waiting
+                BANKSEL     TRISLCD
+                bcf         TRISLCD, DATA4
+                bcf         TRISLCD, DATA5
+                bcf         TRISLCD, DATA6
+                bcf         TRISLCD, DATA7
+                BANKSEL     DATALCD
+                bcf         DATALCD, RW     ; RW to 1: Read
                 return
 
 pulse_e
@@ -1328,6 +1573,36 @@ BLUM3216NA
         nop
         return
 
+; *****************************************************************************
+; User-defined chars for the LCD display
+; *****************************************************************************
 
+senddata        bsf         DATALCD,RS
+                bcf         DATALCD,RW
+                call        sendbyte
+                return
+
+definechars     BANKSEL     DATALCD
+                bcf         DATALCD,RS
+                bcf         DATALCD,RW
+                movlw       0x40
+                call        sendbyte
+                movlw       B'00011000'
+                call        senddata
+                movlw       B'00010100'
+                call        senddata
+                movlw       B'00010100'
+                call        senddata
+                movlw       B'00011011'
+                call        senddata
+                movlw       B'00000100'
+                call        senddata
+                movlw       B'00000100'
+                call        senddata
+                movlw       B'00000011'
+                call        senddata
+                movlw       B'00000000'
+                call        senddata
+                return
 
                 end
