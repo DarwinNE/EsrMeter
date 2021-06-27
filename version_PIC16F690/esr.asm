@@ -2,7 +2,7 @@
 ;               esr.asm
 ;       A simple ESR measuring system exploiting lock-in techniques
 ;       Davide Bucci, 2021
-;       Version 1.1
+;       Version 1.0
 ; *****************************************************************************
 ;
 ; License:
@@ -28,126 +28,99 @@
                                 ; "Register in operand not in bank 0.
                                 ; Ensure bank bits are correct."
 
-#include <p16F883.inc>
-   __config (_INTRC_OSC_NOCLKOUT & _WDT_OFF & _PWRTE_ON & _BOREN_ON & _MCLRE_ON & _CP_OFF & _IESO_OFF & _FCMEN_OFF & _DEBUG_OFF)
+#include <p16F690.inc>
+   __config (_INTRC_OSC_NOCLKOUT & _WDT_OFF & _PWRTE_OFF & _MCLRE_OFF & _CP_OFF & _BOD_OFF & _IESO_OFF & _FCMEN_OFF)
 
 ; Constant
 OSC_LOTHRESHOLD equ     .100    ; Error if the ampl. A_VH is lower than this.
 OSC_HITHRESHOLD equ     .230    ; Error if the ampl. A_VH is higher than this.
 
 ; Control lines of the display device
+E               equ     01
+RS              equ     02
+RW              equ     03
+
 ; Control port used for LCD display
-
-DATALCD         equ     PORTB
-TRISLCD         equ     TRISB
-
-E               equ     2
-RS              equ     0
-RW              equ     1
-
-DATA4           equ     7
-DATA5           equ     6
-DATA6           equ     5
-DATA7           equ     4
-
-PORTFSYNC       equ     PORTC
-TRISFSYNC       equ     TRISC
-FSYNC           equ     RC4
-
+DATALCD         equ     PORTC
+TRISLCD         equ     TRISC
 
 ; These registers must be in the same page of the DATALCD register
-TMP             equ     0x20      ; Dummy for LCD nibble mode
-CNT             equ     0x21      ; Counter
-SDR             equ     0x22      ; Short Delay Register
-LDR             equ     0x23      ; Long Delay Register
-TMP1            equ     0x24      ; Dummy for reversing bit order
+TMP             equ     20      ; Dummy for LCD nibble mode
+CNT             equ     21      ; Counter
+SDR             equ     22      ; Short Delay Register
+LDR             equ     23      ; Long Delay Register
 
-TMP_1           equ     0x2A
-HND             equ     0x2B
-DEC             equ     0x2C
-UNT             equ     0x2D
-
-
-; Used to send 16 bit data via SPI, combined with the w register.
-SENDL           equ     0x2E
+TMP_1           equ     2A
+HND             equ     2B
+DEC             equ     2C
+UNT             equ     2D
 
 ; Used for the divide operator: the two operands, the result and the remainder
-divid0          equ     0x30      ; Most significant byte
-divid1          equ     0x31
-divid2          equ     0x32
-divid3          equ     0x33      ; Least significant byte
+divid0          equ     30      ; Most significant byte
+divid1          equ     31
+divid2          equ     32
+divid3          equ     33      ; Least significant byte
 
-divisH          equ     0x34
-divisL          equ     0x35
+divisH          equ     34
+divisL          equ     35
 
-remdrH          equ     0x36
-remdrL          equ     0x37
+remdrH          equ     36
+remdrL          equ     37
 
 ; aHH:aHL:aLH:aLL*bH:bL -> a6:a5:aHH:aHL:aLH:aLL
 
-aLL             equ     0x40
-aLH             equ     0x41
-aHL             equ     0x42
-aHH             equ     0x43
-a5              equ     0x44
-a6              equ     0x45
+aLL             equ 40
+aLH             equ 41
+aHL             equ 42
+aHH             equ 43
+a5              equ 44
+a6              equ 45
 
-bL              equ     0x46
-bH              equ     0x47
+bL              equ 46
+bH              equ 47
 
-c1              equ     0x48
-c2              equ     0x49
-c3              equ     0x4A
-c4              equ     0x4B
+c1              equ 48
+c2              equ 49
+c3              equ 4A
+c4              equ 4B
 
-bitcnt          equ     0x4C
+bitcnt          equ 4C
 
-bcd             equ     0x50
+bcd             equ     50
 ; memory used up to bcd+4 included
-cnt             equ     0x55
-ii              equ     0x56
-bin             equ     0x59
-; memory used up to store+3
-store           equ     0x61
+cnt             equ     55
+ii              equ     56
+bin             equ     59
+; memory used up to bin+3
+store           equ     61
 
 indf            equ     0
 fsr             equ     4
 
-LOOPCOUNT       equ     0x3C
-NOZ             equ     0x60
+LOOPCOUNT       equ     3C
+NOZ             equ     60
 
 ; Configuration for the measurement control
-CTRLP           equ     PORTC
-TRISCTRL        equ     TRISC
-PWMPIN          equ     RC6
+CTRLP           equ     PORTB
+TRISCTRL        equ     TRISB
 
 ; The value of the ESR is calculated as
 ; 10*(V_B-V_C)/(V_A-V_B)
-CTRLA           equ     RC2
-CTRLB           equ     RC0
-CTRLC           equ     RC1
+CTRLA           equ     4
+CTRLB           equ     5
+CTRLC           equ     6
 
-A_VH            equ     0x70
-A_VL            equ     0x71
+A_VH            equ     70
+A_VL            equ     71
 
-B_VH            equ     0x72
-B_VL            equ     0x73
+B_VH            equ     72
+B_VL            equ     73
 
-C_VH            equ     0x74
-C_VL            equ     0x75
+C_VH            equ     74
+C_VL            equ     75
 
-STOREH          equ     0x76
-STOREL          equ     0x77
-
-MSBH            equ     0x78
-MSBL            equ     0x79
-LSBH            equ     0x7A
-LSBL            equ     0x7B
-
-FREQ            equ     0x7C
-
-BSENSE          equ     0x7E
-BUTTON          equ     0x7F
+STOREH          equ     76
+STOREL          equ     77
 
 ; *****************************************************************************
 ;               MACROS
@@ -257,21 +230,8 @@ MOV16FF         MACRO       DESTH, DESTL, SOURCEH, SOURCEL
                 movwf       DESTL
                 ENDM
 
-PROGFREQ        MACRO       LSB, MSB, message
-                movlw       (LSB & 0xFF00)>>8
-                movwf       LSBH
-                movlw       (LSB & 0x00FF)
-                movwf       LSBL
-                movlw       (MSB & 0xFF00)>>8
-                movwf       MSBH
-                movlw       (MSB & 0x00FF)
-                movwf       MSBL
-                call        ConfigureAD9833
-                WRITELN     message
-                ENDM
-
 ; *****************************************************************************
-;               Interrupt vectors
+;               Main Program
 ; *****************************************************************************
                 org         0000
                 goto        prg
@@ -281,181 +241,35 @@ PROGFREQ        MACRO       LSB, MSB, message
                 org         0004
                 goto        prg
 
-; *****************************************************************************
-;               Text tables (page 0)
-; *****************************************************************************
-text_welcome    addwf   PCL,f
-                DT      "Welcome ESR  1.0",0
-text_davide     addwf   PCL,f
-                DT      "D. Bucci 2021",0
-text_lowosc     addwf   PCL,f
-                DT      "ERROR: Low osc. ",0
-text_hiosc      addwf   PCL,f
-                DT      "ERROR: High osc.",0
-text_reshi      addwf   PCL,f
-                DT      "Resistance high.",0
-text_esr        addwf   PCL,f
-                DT      "ESR = ",0
-freq1           addwf   PCL,f
-                DT      "Freq = 100 Hz",0
-freq2           addwf   PCL,f
-                DT      "Freq = 200 Hz",0
-freq3           addwf   PCL,f
-                DT      "Freq = 500 Hz",0
-freq4           addwf   PCL,f
-                DT      "Freq = 1 kHz",0
-freq5           addwf   PCL,f
-                DT      "Freq = 2 kHz",0
-freq6           addwf   PCL,f
-                DT      "Freq = 5 kHz",0
-freq7           addwf   PCL,f
-                DT      "Freq = 10 kHz",0
-freq8           addwf   PCL,f
-                DT      "Freq = 20 kHz",0
-freq9           addwf   PCL,f
-                DT      "Freq = 50 kHz",0
-freq10           addwf   PCL,f
-                DT      "Freq = 100 kHz",0  ; This fills more or less one page
-
-
-                org     0x100
-freq11          addwf   PCL,f
-                DT      "Freq = 200 kHz",0
-
-FREQUENCY = .100
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB1 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB1 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .200
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB2 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB2 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .500
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB3 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB3 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .1000
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB4 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB4 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .2000
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB5 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB5 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .5000
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB6 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB6 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .10000
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB7 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB7 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .20000
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB8 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB8 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .50000
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB9 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB9 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .100000
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB10 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB10 = (VALUE & 0x3FFF) | 0x4000
-
-FREQUENCY = .200000
-VALUE = .10736*FREQUENCY/.1000
-;VALUE = (2<<28)*FREQUENCY/25000000
-
-MSB11 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB11 = (VALUE & 0x3FFF) | 0x4000
-; *****************************************************************************
-;               Main Program
-; *****************************************************************************
-
 prg
+                BANKSEL     TRISLCD
+                clrf        TRISLCD         ; Display ports as outputs
                 BANKSEL     ANSEL
                 clrf        ANSEL
-                BANKSEL     ANSELH
                 clrf        ANSELH
-                BANKSEL     PORTB
-                clrf        PORTB
-                BANKSEL     TRISB
-                clrf        TRISB
-                BANKSEL     WDTCON
-                bcf         WDTCON,SWDTEN
-
-                BANKSEL     TRISCTRL
-                clrf        TRISLCD         ; Display ports as outputs
-                bcf         TRISCTRL,CTRLA
-                bcf         TRISCTRL,CTRLB
-                bcf         TRISCTRL,CTRLC
-
-
+                BANKSEL     DATALCD
                 call        longdelay
                 call        longdelay
                 call        longdelay
-
-                
-                call        functionset
-                call        displayon
-                
                 call        longdelay
                 call        functionset
                 call        displayon
-
-                call        longdelay
-                call        functionset
-                call        displayon
-    
                 call        displayclear
                 call        displaychome
+
                 WRITELN     text_welcome    ; Greetings and program version.
                 movlw       0x40
                 call        displayaddrset  ; Move to the second line
                 WRITELN     text_davide     ; Copyright
-                
-                clrf        FREQ
-                movlw       0x4
-                movwf       BUTTON
-                
-                call        ConfigureADC
-                call        ConfigureSPI
-                call        ResetAD9833
-                
                 call        longdelay
                 call        longdelay
                 call        longdelay
-                
+                BANKSEL     TRISCTRL
+                clrf        TRISCTRL
+                BANKSEL     SSPCON
+                clrf        SSPCON
+                call        ConfigureAll
+
                 clrf        store
                 clrf        store+1
                 clrf        store+2
@@ -463,23 +277,12 @@ prg
 
                 ; Main program loop: read ADC values, calculate ESR, repeat.
 loop
-                BANKSEL     TRISCTRL
-                bsf         TRISCTRL,PWMPIN
-
                 READV       CTRLA, A_VH, A_VL ; read A, B and C
                 READV       CTRLB, B_VH, B_VL
                 READV       CTRLC, C_VH, C_VL
 
-                movfw       BUTTON
-                addwf       FREQ,f
-                
                 call        displayclear
-                call        ChooseFreq
-                movfw       BUTTON
-                btfss       STATUS,Z
-                goto        buttonzero
-
-                ;call        output1l    ; Write the first line (debug)
+                call        output1l    ; Write the first line (debug)
 
                 ; ESR=(B-C)/(A-B)*10
                 BANKSEL     divid0  ; Transfer B in the high 16 bits of divid
@@ -501,20 +304,14 @@ loop
                 call        mult_32_16
 
                 ; store += divid;
-                ;ADD32BIT    store, store+1, store+2, store+3, aHH, aHL, aLH, aLL
-                ;DIV2O32BIT  store, store+1, store+2, store+3    ; store /=2;
-                ;MOV16FF     bin+0, bin+1, store+0, store+1 ; bin=store (32 bit)
-                ;MOV16FF     bin+2, bin+3, store+2, store+3
+                ADD32BIT    store, store+1, store+2, store+3, aHH, aHL, aLH, aLL
+                DIV2O32BIT  store, store+1, store+2, store+3    ; store /=2;
 
-                MOV16FF     bin+0, bin+1, aHH, aHL
-                MOV16FF     bin+2, bin+3, aLH, aLL
-                
+                MOV16FF     bin+0, bin+1, store+0, store+1 ; bin=store (32 bit)
+                MOV16FF     bin+2, bin+3, store+2, store+3
+
                 call        output2l    ; Write the second line (ESR result)
                 goto        loop
-
-buttonzero      clrf        BUTTON
-                goto        loop
-
 
 err_lowosc      WRITELN     text_lowosc
                 call        longdelay
@@ -532,28 +329,28 @@ readadc
                 call        longdelay
                 clrf        STOREH
                 clrf        STOREL
-                movlw       0x40
+                movlw       0x10
                 movwf       CNT
-@llo            call        shortdelay
+llo
                 BANKSEL     ADCON0
                 bsf         ADCON0,GO
                 btfsc       ADCON0,GO
                 goto        $-1         ; Wait until conversion is complete
                 ADD16BIT    STOREH, STOREL, ADRESH, ADRESL
                 decfsz      CNT,f
-                goto @llo
+                goto llo
 
                 return
 
 checkamplitudes movfw       A_VH        ; Check if the oscillator amplitude is OK.
                 sublw       OSC_LOTHRESHOLD
-                btfsc      STATUS,C
-                goto       err_lowosc
+                ;btfsc      STATUS,C
+                ;goto       err_lowosc
 
                 movfw       A_VH
                 sublw       OSC_HITHRESHOLD
-                btfss      STATUS,C
-                goto       err_hiosc
+                ;btfss      STATUS,C
+                ;goto       err_hiosc
                 return
 
 output1l        movfw       A_VH
@@ -589,132 +386,18 @@ output2l        movlw       0x40
 ;               Ancillary routines
 ; *****************************************************************************
 
-ChooseFreq      movlw       .1
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq1
-                movlw       .2
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq2
-                movlw       .3
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq3
-                movlw       .4
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq4
-                movlw       .5
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq5
-                movlw       .6
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq6
-                movlw       .7
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq7
-                movlw       .8
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq8
-                movlw       .9
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq9
-                movlw       .10
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq10
-                movlw       .11
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq11
-                                                                                                                                
-                btfsc       FREQ,7
-                goto        @set1
-                movlw       FREQ
-                btfsc       STATUS,Z
-                goto        @set1
-                
-                movlw       .10
-                subwf       FREQ
-                btfss       STATUS,C
-                goto        @set1
-                movlw       .11
-                movwf       FREQ
-                goto        ChooseFreq
-
-@set1
-                movlw       1               ; If we get here, FREQ contains an
-                movwf       FREQ            ; invalid data. Put 1.
-                goto        ChooseFreq
-
-sfreq1:
-                PROGFREQ    LSB1,MSB1,freq1
-                return
-
-sfreq2:
-                PROGFREQ    LSB2,MSB2,freq2
-                return
-
-sfreq3:
-                PROGFREQ    LSB3,MSB3,freq3
-                return
-
-sfreq4:
-                PROGFREQ    LSB4,MSB4,freq4
-                return
-
-sfreq5:
-                PROGFREQ    LSB5,MSB5,freq5
-                return
-
-sfreq6:
-                PROGFREQ    LSB6,MSB6,freq6
-                return
-
-sfreq7:
-                PROGFREQ    LSB7,MSB7,freq7
-                return
-
-sfreq8:
-                PROGFREQ    LSB8,MSB8,freq8
-                return
-
-sfreq9:
-                PROGFREQ    LSB9,MSB9,freq9
-                return
-
-sfreq10:
-                PROGFREQ    LSB10,MSB10,freq10
-                return
-
-sfreq11:
-                PROGFREQ    LSB11,MSB11,freq11
-                return
-
-
-ConfigureADC   ; Configure the ADC, read on A0.
+ConfigureAll    ; Configure the ADC, read on A0.
                 BANKSEL     TRISA
                 bsf         TRISA,0
-                bsf         TRISA,2
-                bsf         TRISA,3
-                
                 BANKSEL     ANSEL
-                bsf         ANSEL,0     ; Use as A0 as an analog input. 
-                bsf         ANSEL,2
-                bsf         ANSEL,3
+                bsf         ANSEL,0     ; Use as A0 as an analog input.
                 BANKSEL     ADCON1
-                bcf         ADCON1,VCFG1
-                bsf         ADCON1,VCFG0
-                bsf         ADCON1,ADFM ; Right justified ADC result.
+                bcf         ADCON1,4    ; /32 ADC frequency
+                bsf         ADCON1,5
+                bcf         ADCON1,6
                 BANKSEL     ADCON0
-                bcf         ADCON0,7    ; Set Fosc/8 (ok for Fosc=4MHz)
-                bsf         ADCON0,6
+                bsf         ADCON0,ADFM ; Left justified ADC result.
+                bsf         ADCON0,VCFG ; Vref voltage reference.
                 bcf         ADCON0,5    ; Set input in channel 0.
                 bcf         ADCON0,4
                 bcf         ADCON0,3
@@ -722,76 +405,6 @@ ConfigureADC   ; Configure the ADC, read on A0.
                 BANKSEL     TRISC
                 clrf        TRISC
                 return
-
-ConfigureSPI    ; Configure SPI communication with AD9833
-                BANKSEL     TRISC
-                bcf         TRISC,RC3
-                bcf         TRISC,RC5
-                bcf         TRISFSYNC,FSYNC
-                BANKSEL     SSPSTAT
-                clrf        SSPSTAT
-                bsf         SSPSTAT, CKE
-                BANKSEL     SSPCON
-                bcf         SSPCON, SSPM0   ; Master SPI, clock Fosc/4
-                bcf         SSPCON, SSPM1
-                bcf         SSPCON, SSPM2
-                bcf         SSPCON, SSPM3
-                bsf         SSPCON, CKP     ; Clock polarity, idle high
-                bsf         SSPCON, SSPEN   ; Serial port enable
-                bcf         SSPCON, SSPOV
-                bcf         SSPCON, WCOL
-
-                return
-
-StartReg        BANKSEL     PORTFSYNC
-                bcf         PORTFSYNC,FSYNC
-                return
-
-StopReg         BANKSEL     PORTFSYNC
-                bsf         PORTFSYNC,FSYNC
-                return
-
-WriteSPI        BANKSEL     SSPBUF
-                movwf       SSPBUF
-                BANKSEL     SSPSTAT
-                btfss       SSPSTAT, BF
-                goto        $-1
-                movfw       SSPBUF
-                return
-
-ResetAD9833     call        StartReg
-                movlw       0x01            ; Control word write, reset
-                call        WriteSPI
-                movlw       0x00
-                call        WriteSPI        ; FREQ0 register write, 14 LSB
-                call        StopReg
-                return
-
-ConfigureAD9833
-                call        StartReg
-                movlw       0x21            ; Control word write, reset
-                call        WriteSPI
-                movlw       0x00
-                call        WriteSPI        ; FREQ0 register write, 14 LSB
-                movfw       LSBH
-                call        WriteSPI
-                movfw       LSBL
-                call        WriteSPI        ; FREQ0 register write, 14 MSB
-                movfw       MSBH
-                call        WriteSPI
-                movfw       MSBL
-                call        WriteSPI
-                movlw       0xC0            ; PHASE0 register write
-                call        WriteSPI
-                movlw       0x00
-                call        WriteSPI
-                movlw       0x20            ; 0x2000 sine, 0x2028 square
-                call        WriteSPI        ; 0x2002 triangle
-                movlw       0x00
-                call        WriteSPI
-                call        StopReg
-                return
-                
 
 ; *****************************************************************************
 ; Write a 24-bit number contained in bin to bin+3 (big endian) on the LCD
@@ -837,54 +450,56 @@ write_number24
 ; *****************************************************************************
 
 b2bcd
-                movlw       .32              ; 32-bits
-                movwf       ii              ; make cycle counter
-                clrf        bcd             ; clear result area
-                clrf        bcd+1
-                clrf        bcd+2
-                clrf        bcd+3
-                clrf        bcd+4
+                movlw   .32              ; 32-bits
+                movwf   ii              ; make cycle counter
+                clrf    bcd             ; clear result area
+                clrf    bcd+1
+                clrf    bcd+2
+                clrf    bcd+3
+                clrf    bcd+4
 
-b2bcd2          movlw       bcd             ; make pointer
-                movwf       fsr
-                movlw       5
-                movwf       cnt
+b2bcd2          movlw   bcd             ; make pointer
+                movwf   fsr
+                movlw   5
+                movwf   cnt
 
 ; Mike's routine:
 
-b2bcd3          movlw       0x33
-                addwf       indf,f          ; add to both nybbles
-                btfsc       indf,3          ; test if low result > 7
-                andlw       0xf0            ; low result >7 so take the 3 out
-                btfsc       indf,7          ; test if high result > 7
-                andlw       0x0f            ; high result > 7 so ok
-                subwf       indf,f          ; any results <= 7, subtract back
-                incf        fsr,f           ; point to next
-                decfsz      cnt,f
-                goto        b2bcd3
+b2bcd3          movlw   0x33
+                addwf   indf,f          ; add to both nybbles
+                btfsc   indf,3          ; test if low result > 7
+                andlw   0xf0            ; low result >7 so take the 3 out
+                btfsc   indf,7          ; test if high result > 7
+                andlw   0x0f            ; high result > 7 so ok
+                subwf   indf,f          ; any results <= 7, subtract back
+                incf    fsr,f           ; point to next
+                decfsz  cnt,f
+                goto    b2bcd3
 
-                rlf         bin+3,f         ; get another bit
-                rlf         bin+2,f
-                rlf         bin+1,f
-                rlf         bin+0,f
-                rlf         bcd+4,f         ; put it into bcd
-                rlf         bcd+3,f
-                rlf         bcd+2,f
-                rlf         bcd+1,f
-                rlf         bcd+0,f
-                decfsz      ii,f            ; all done?
-                goto        b2bcd2          ; no, loop
-                return                      ; yes
+                rlf     bin+3,f         ; get another bit
+                rlf     bin+2,f
+                rlf     bin+1,f
+                rlf     bin+0,f
+                rlf     bcd+4,f         ; put it into bcd
+                rlf     bcd+3,f
+                rlf     bcd+2,f
+                rlf     bcd+1,f
+                rlf     bcd+0,f
+                decfsz  ii,f            ; all done?
+                goto    b2bcd2          ; no, loop
+                return                  ; yes
+
+
 
 ; *****************************************************************************
 ;               LCD Subroutines
 ; *****************************************************************************
 sendspace
-                movlw       ' '
+                movlw   ' '
 sendchar
-                bsf         DATALCD,RS      ; RS to 1: send a character
-                bcf         DATALCD,RW      ; RW to 0: write to display
-                call        sendbyte        ; Send the channel number
+                bsf     DATALCD,RS      ; RS to 1: we are sending a character
+                bcf     DATALCD,RW      ; RW to 0: we are writing to display
+                call    sendbyte        ; Send the channel number
                 return
 
 write_number                            ; Print the number in w
@@ -952,16 +567,11 @@ functionset
                 BANKSEL DATALCD
                 bcf     DATALCD,RS
                 bcf     DATALCD,RW
-                movlw   0x02            ; Will be interpreted as nibble mode
-                                        ; the first nibble will be ignored
-                                        ; the second one will be interpreted
-                                        ; as 0x20 if the LCD has just been
-                                        ; switched on.
-                call    sendbyte
+                movlw   0x20            ; Nibble mode of the LCD
+                movwf   DATALCD
+                call    pulse_e
                 call    busywait
-                
-functionset2    BANKSEL DATALCD
-                bcf     DATALCD,RS
+functionset2    bcf     DATALCD,RS
                 bcf     DATALCD,RW
                 movlw   0x28            ; Two lines display setup
                 call    sendbyte
@@ -986,7 +596,7 @@ displayon
                 BANKSEL DATALCD
                 bcf     DATALCD,RS
                 bcf     DATALCD,RW
-                movlw   0x0C             ; Display on, 
+                movlw   0x0D            ; Display on, increment, blink off
                 call    sendbyte
                 retlw   0
 
@@ -1007,6 +617,7 @@ displaychome
                 movlw   0x02
                 call    sendbyte
                 retlw   0
+
 
                 ; Set cursor address (passed in w)
 displayaddrset
@@ -1030,44 +641,9 @@ displaycurdir
 ; *****************************************************************************
 ;               Delay routines for LCD
 ; *****************************************************************************
-longdelay       movlw   BUTTON          ; Skip if a button is pressed.
-                btfss   STATUS,Z
-                return
-                BANKSEL TRISA
-                bsf     TRISA,RA4
-                bsf     TRISA,RA5
-
-                BANKSEL PORTA
-
-                movfw   PORTA
-                movwf   BSENSE
-
-                call    shortdelay
-
-                movfw   BSENSE
-                BANKSEL PORTA
-                xorwf   PORTA,w
-                btfsc   STATUS,Z
-                goto    @cont
-
-@change         btfss   BSENSE,RA4
-                goto    @invpol
-                
-                call    shortdelay
-                btfss   PORTA,RA5
-                incf    BUTTON,f
-                btfsc   PORTA,RA5
-                decf    BUTTON,f
-                return                      ; Exit immediately if a button
-
-@invpol         call    shortdelay
-                btfss   PORTA,RA5
-                decf    BUTTON,f
-                btfsc   PORTA,RA5
-                incf    BUTTON,f
-                return                      ; Exit immediately if a button
-@cont
+longdelay
                 BANKSEL LDR
+                call    shortdelay
                 decfsz  LDR,f
                 goto    longdelay
                 return
@@ -1087,22 +663,17 @@ shortdelay
                 goto    $-1
                 return
 
-busywait        
+busywait
                 BANKSEL TRISLCD
-                ;movlw   0xF0            ; Set all the port (4 bits) as inputs
-                clrf    TMP
-                bsf     TRISLCD, DATA4
-                bsf     TRISLCD, DATA5
-                bsf     TRISLCD, DATA6
-                bsf     TRISLCD, DATA7
+                movlw   0xF0            ; Set all the port (4 bits) as inputs
+                movwf   TRISLCD
                 BANKSEL DATALCD
                 bcf     DATALCD, RS     ; RS to 0
                 bsf     DATALCD, RW     ; RW to 1: Read
                 nop
                 bsf     DATALCD, E      ; Raise E line
-                bcf     STATUS,C
-                btfsc   DATALCD, DATA7
-                bsf     STATUS,C
+                nop
+                rlf     DATALCD, w      ; Rotate the busy flag in the carry
                 bcf     DATALCD, E
                 nop
                 nop
@@ -1114,47 +685,28 @@ busywait
                 btfsc   STATUS, C       ; Test the carry
                 goto    busywait        ; If busy, continue waiting
                 BANKSEL TRISLCD
-                bcf     TRISLCD, DATA4
-                bcf     TRISLCD, DATA5
-                bcf     TRISLCD, DATA6
-                bcf     TRISLCD, DATA7
+                movlw   0x00            ; Set all the port (4 bits) as outputs
+                movwf   TRISLCD
                 BANKSEL DATALCD
                 bcf     DATALCD, RW     ; RW to 1: Read
                 return
 
 pulse_e
-                BANKSEL     DATALCD
-                bsf         DATALCD,E
+                BANKSEL DATALCD
+                bsf     DATALCD,E
                 nop
                 nop
                 nop
-                bcf         DATALCD,E
-                nop
-                nop
-                nop
+                bcf     DATALCD,E
                 return
 
-                ; Send the upper nibble in W into the data lines
-portnibble
-                movwf       TMP1
-                BANKSEL     DATALCD
-                bcf         DATALCD, DATA4
-                bcf         DATALCD, DATA5
-                bcf         DATALCD, DATA6
-                bcf         DATALCD, DATA7
-                btfsc       TMP1, 4
-                bsf         DATALCD, DATA4
-                btfsc       TMP1, 5
-                bsf         DATALCD, DATA5
-                btfsc       TMP1, 6
-                bsf         DATALCD, DATA6
-                btfsc       TMP1, 7
-                bsf         DATALCD, DATA7
-                nop
-                nop
-                nop
-                nop
+portnibble      andlw   0xF0            ; clear the lower 4 bits of w
+                BANKSEL DATALCD
+                iorwf   DATALCD, f      ; or this with port B
+                iorlw   0x0F            ; set lower 4 bits of w
+                andwf   DATALCD, f      ; and this with port B
                 return
+
 
 ; *****************************************************************************
 ;               Divide 32-bit over 16-bit operands
@@ -1329,5 +881,20 @@ BLUM3216NA
         return
 
 
+; *****************************************************************************
+;               Text tables
+; *****************************************************************************
 
+text_welcome    addwf   PCL,f
+                DT      "Welcome ESR  1.0",0
+text_davide     addwf   PCL,f
+                DT      "D. Bucci 2021   ",0
+text_lowosc     addwf   PCL,f
+                DT      "ERROR: Low osc. ",0
+text_hiosc      addwf   PCL,f
+                DT      "ERROR: High osc.",0
+text_reshi      addwf   PCL,f
+                DT      "Resistance high.",0
+text_esr        addwf   PCL,f
+                DT      "ESR = ",0
                 end
