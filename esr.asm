@@ -138,17 +138,23 @@ B_VL            equ     0x73
 C_VH            equ     0x74
 C_VL            equ     0x75
 
+; The result of each ADC conversion (temporary)
 STOREH          equ     0x76
 STOREL          equ     0x77
 
+; The two 14-bit words that define the frequency on the AD9833
 MSBH            equ     0x78
 MSBL            equ     0x79
 LSBH            equ     0x7A
 LSBL            equ     0x7B
 
+; The index in the frequency table
 FREQ            equ     0x7C
+
+; The index in the DC value
 DCVAL           equ     0x7D
 
+; User interface (CHVAL!=0 means that the knob has moved)
 BSENSE          equ     0x7E
 CHVAL           equ     0x7F
 
@@ -177,7 +183,6 @@ WRITELN         MACRO       msg
                 BANKSEL     CNT
                 clrf        CNT
 loop_ch
-
                 movlw       HIGH msg
                 movwf       PCLATH
                 movlw       LOW msg
@@ -191,9 +196,7 @@ loop_ch
                 xorlw       0x00
                 btfsc       STATUS,Z        ; Test if the character is a zero
                 goto        end_mes
-                bsf         DATALCD,RS      ; RS to 1: we are sending a char
-                bcf         DATALCD,RW      ; RW to 0: we are writing to display
-                call        sendbyte
+                call        senddata
                 incf        CNT, f
                 goto        loop_ch
 end_mes
@@ -269,7 +272,7 @@ PROGFREQ        MACRO       LSB, MSB, message
                 movwf       MSBH
                 movlw       (MSB & 0x00FF)
                 movwf       MSBL
-                call        ConfigureAD9833
+                lcall       ConfigureAD9833
                 WRITELN     message
                 ENDM
 
@@ -292,7 +295,7 @@ text_welcome    addwf   PCL,f
 text_davide     addwf   PCL,f
                 DT      "D. Bucci 2021",0
 text_lowosc     addwf   PCL,f
-                DT      "Overload...",0
+                DT      "DC short...",0
 text_hiosc      addwf   PCL,f
                 DT      "Oscillator high.",0
 text_reshi      addwf   PCL,f
@@ -325,6 +328,7 @@ freq10          addwf   PCL,f
 freq11          addwf   PCL,f
                 DT      "Freq = 200 kHz",0
 
+DCVALUE_NO_DC   equ     .6
 
                 ; Values of the PWM for a 5V power supply
 dclist          addwf   PCL,f
@@ -333,7 +337,9 @@ dclist          addwf   PCL,f
                 retlw   .18     ; -1.5V
                 retlw   .29     ; -1V
                 retlw   .39     ; -0.5V
+                retlw   .43     ; -0.3V
                 retlw   .50     ; 0V
+                retlw   .57     ; 0.3V
                 retlw   .60     ; 0.5V
                 retlw   .71     ; 1V
                 retlw   .82     ; 1.5V
@@ -343,31 +349,40 @@ dcmenu          addwf   PCL,f
                 DT      "Choose DC bias",0
 
 dcval1          addwf   PCL,f
-                DT      "DC = -2 V",0
+                DT      "DC = -2 V     ",0
 
 dcval2          addwf   PCL,f
-                DT      "DC = -1.5 V",0
+                DT      "DC = -1.5 V   ",0
 
 dcval3          addwf   PCL,f
-                DT      "DC = -1 V",0
+                DT      "DC = -1 V     ",0
 
 dcval4          addwf   PCL,f
-                DT      "DC = -0.5 V",0
+                DT      "DC = -0.5 V   ",0
 
 dcval5          addwf   PCL,f
-                DT      "DC = 0 V (off)",0
+                DT      "DC = -0.3 V   ",0
 
 dcval6          addwf   PCL,f
-                DT      "DC = 0.5 V",0
-
+                DT      "DC = 0 V (off)",0
+                
 dcval7          addwf   PCL,f
-                DT      "DC = 1 V",0
+                DT      "DC = 0.3 V    ",0
 
 dcval8          addwf   PCL,f
-                DT      "DC = 1.5 V",0
+                DT      "DC = 0.5 V    ",0
 
 dcval9          addwf   PCL,f
-                DT      "DC = 2 V",0
+                DT      "DC = 1 V      ",0
+
+dcval10          addwf   PCL,f
+                DT      "DC = 1.5 V    ",0
+
+dcval11         addwf   PCL,f
+                DT      "DC = 2 V      ",0
+
+nosignal        addwf   PCL,f
+                DT      "      ----",0
 
 FREQUENCY = .100
 VALUE = .10736*FREQUENCY/.1000
@@ -471,27 +486,9 @@ prg
                 clrf        TESTMODE
                 btfss       PORTA,RA7
                 bsf         TESTMODE,7
-                
 
-                call        longdelay
-                call        longdelay
-                call        longdelay
+                lcall       initdisplay
 
-
-                call        functionset
-                call        displayon
-
-                call        longdelay
-                call        functionset
-                call        displayon
-
-                call        longdelay
-                call        functionset
-                call        definechars
-                call        displayon
-
-                call        displayclear
-                call        displaychome
                 WRITELN     text_welcome    ; Greetings and program version.
                 movlw       0x40
                 call        displayaddrset  ; Move to the second line
@@ -501,7 +498,7 @@ prg
                 movlw       0x4
                 movwf       CHVAL           ; Force setting of AD9833
 
-                movlw       0x5             ; Standard value for DC (no DC)
+                movlw       DCVALUE_NO_DC   ; Standard value for DC (no DC)
                 movwf       DCVAL
 
                 call        ConfigureADC
@@ -516,6 +513,7 @@ prg
                 clrf        store+1
                 clrf        store+2
                 clrf        store+3
+
                 call        SetPWM
                 ; Main program loop: read ADC values, calculate ESR, repeat.
 loop
@@ -534,25 +532,17 @@ loop
                                         ; show the incomplete measurement.
                 btfss       PORTA,RA7   ; Check if the button is depressed
                 goto        ChooseDc
-
-
                 movfw       TESTMODE
-                btfss       STATUS,Z
-                goto        testloop
-
-
-
-                movfw       DCVAL
-                xorlw       0x05        ; Check if a DC is present
                 btfsc       STATUS,Z
-                goto        @nodc
+                goto        notest
+                lgoto       testloop
+notest          movfw       DCVAL
+                xorlw       DCVALUE_NO_DC   ; Check if a DC is present
+                btfsc       STATUS,Z
+                goto        checkamplitudes
                 movlw       0x0E        ; Put cursor in the top right corner
                 call        displayaddrset
-                movlw       '+'         ; Write '+DC' if appropriate
-                call        senddata
-                movlw       0x00        ; Write '+DC' if appropriate
-                call        senddata
-@nodc
+                call        writedc
 
 checkamplitudes movfw       A_VH        ; Check if the oscillator amplitude is OK.
                 sublw       OSC_LOTHRESHOLD
@@ -564,18 +554,15 @@ checkamplitudes movfw       A_VH        ; Check if the oscillator amplitude is O
                 btfss       STATUS,C
                 goto        err_hiosc
 
-
                 ; ESR=(B-C)/(A-B)*10
                 BANKSEL     divid0  ; Transfer B in the high 16 bits of divid
                 MOV16FF     divid0, divid1, B_VH, B_VL
                 clrf        divid2      ; Put 0 to divid2, divid3
                 clrf        divid3
                 SUB16BIT    divid0, divid1, C_VH, C_VL  ; divid -= C;
-
                 MOV16FF     divisH, divisL, A_VH, A_VL  ; Transfer A in divis
                 SUB16BIT    divisH, divisL, B_VH, B_VL  ; divis -= B
                 call        divide      ; Divide! Result in divid0,1,2,3.
-
                 MOV16FF     aHH,aHL,divid0,divid1 ; Multiply times 1525
                 MOV16FF     aLH,aLL,divid2,divid3
                 movlw       0x5         ; Hi-byte of 1525
@@ -596,8 +583,27 @@ checkamplitudes movfw       A_VH        ; Check if the oscillator amplitude is O
                 call        output2l    ; Write the second line (ESR result)
                 goto        loop
 
+; *****************************************************************************
+
+writedc         movfw       DCVAL
+                sublw       DCVALUE_NO_DC
+                btfsc       STATUS,C
+                goto        dcneg
+                movlw       '+'         ; Write '+DC' if appropriate
+                call        senddata
+                movlw       0x00        ; Special character ("DC")
+                call        senddata
+                return
+
+dcneg           movlw       '-'         ; Write '-DC' if appropriate
+                call        senddata
+                movlw       0x00        ; Special character ("DC")
+                call        senddata
+                return
+
+
 SetPWM          movfw       DCVAL
-                xorlw       0x05        ; Value that corresponds to DC
+                xorlw       DCVALUE_NO_DC       ; Value that corresponds to DC
                 btfsc       STATUS,Z
                 goto        SetNoDC
                 BANKSEL     TRISCTRL
@@ -609,7 +615,7 @@ SetPWM          movfw       DCVAL
                 BANKSEL     PR2
                 movwf       PR2
                 movfw       DCVAL
-                call        dclist
+                lcall       dclist
                 BANKSEL     CCPR1L
                 movwf       CCPR1L
                 BANKSEL     T2CON
@@ -627,7 +633,15 @@ buttonzero      clrf        CHVAL
 
 
 err_lowosc      call        displayclear
+                movfw       DCVAL               ; If a DC bias is present,
+                xorlw       DCVALUE_NO_DC       ; then 99% of the times we have
+                btfsc       STATUS,Z            ; a short circuit.
+                goto        nosig
                 WRITELN     text_lowosc
+                call        longdelay
+                goto        loop
+
+nosig           WRITELN     nosignal
                 call        longdelay
                 goto        loop
 
@@ -656,47 +670,12 @@ readadc
                 decfsz      CNT,f
                 goto @llo
                 return
-                
-
-; This is a test mode end of loop. Shows on the display the value of A, B and C
-; (writing separately the high byte and the low byte for each).
-
-testloop        call        displayclear
-                movlw       'A'
-                call        senddata
-                movfw       A_VH
-                call        write_number
-                movlw       ','
-                call        senddata
-                movfw       A_VL
-                call        write_number
-                call        sendspace
-                movlw       'B'
-                call        senddata
-                movfw       B_VH
-                call        write_number
-                movlw       ','
-                call        senddata
-                movfw       B_VL
-                call        write_number
-                
-                movlw       0x40
-                call        displayaddrset  ; Move to the second line
-                movlw       'C'
-                call        senddata
-                movfw       C_VH
-                call        write_number
-                movlw       ','
-                call        senddata
-                movfw       C_VL
-                call        write_number
-                call        sendspace
-                goto        loop
 
 output2l        movlw       0x40
                 call        displayaddrset
                 WRITELN     text_esr
                 call        write_number24
+                call        sendspace
                 movlw       0xF4
                 call        sendchar    ; Write the ohm symbol
                 return
@@ -704,25 +683,31 @@ output2l        movlw       0x40
 ;               Ancillary routines
 ; *****************************************************************************
 
-ChooseDc        call        displayclear
+; In this loop one can choose the DC value to be set.
+ChooseDc        lcall       displayclear
                 WRITELN     dcmenu
-                movlw       0x40
-                call        displayaddrset  ; Move to the second line
-                movfw       CHVAL
+ChooseDcLoop    movlw       0x40
+                lcall       displayaddrset  ; Move to the second line
+                movfw       CHVAL           ; Update the DC value if needed
                 addwf       DCVAL,f
                 clrf        CHVAL
-                ;movfw       DCVAL
-                ;call        write_number
-                call        SelectDC
-
+                lcall       SelectDC        ; Show the DC value
                 call        longdelay
-
                 btfsc       PORTA,RA7
-                goto        loop
-                goto        ChooseDc
+                goto        loop            ; Exit from this loop
+                goto        ChooseDcLoop
 
-SelectDC        movlw       .1
-                xorwf       DCVAL,w
+SelectDC        btfsc       DCVAL,7         ; Check if DCVAL is negative
+                goto        sdc1            ; If yes, put DCVAL=1
+                movfw       DCVAL
+                btfsc       STATUS,Z        ; Check if DCVAL is zero
+                goto        sdc1            ; If yes, put DCVAL=1
+                movlw       .11
+                subwf       DCVAL,w         ; Check if DCVAL is greater than 9
+                btfsc       STATUS,C
+                goto        sdc11            ; If yes, put DCVAL=9
+@choose         movlw       .1
+                xorwf       DCVAL,w         ; Write the correct message
                 btfsc       STATUS,Z
                 goto        sdc1
                 movlw       .2
@@ -757,81 +742,60 @@ SelectDC        movlw       .1
                 xorwf       DCVAL,w
                 btfsc       STATUS,Z
                 goto        sdc9
-
-                btfsc       DCVAL,7
-                goto        @sdc1
-                movlw       DCVAL
+                movlw       .10
+                xorwf       DCVAL,w
                 btfsc       STATUS,Z
-                goto        @sdc1
+                goto        sdc10
+                movlw       .11
+                xorwf       DCVAL,w
+                btfsc       STATUS,Z
+                goto        sdc11
 
-                movlw       .8
-                subwf       DCVAL,w
-                btfss       STATUS,C
-                goto        @sdc1
-                movlw       .9
+sdc1            movlw       0x1             ; We need to be sure that negative
+                movwf       DCVAL           ; values are transformed into 1
+                WRITELN     dcval1
+                goto        SetPWM
+
+sdc2                                        ; No need to set values for DCVAL
+                WRITELN     dcval2
+                goto        SetPWM
+
+sdc3
+                WRITELN     dcval3
+                goto        SetPWM
+
+sdc4
+                WRITELN     dcval4
+                goto        SetPWM
+
+sdc5
+                WRITELN     dcval5
+                goto        SetPWM
+
+sdc6
+                WRITELN     dcval6
+                goto        SetPWM
+
+sdc7
+                WRITELN     dcval7
+                goto        SetPWM
+
+sdc8
+                WRITELN     dcval8
+                goto        SetPWM
+
+sdc9            
+                WRITELN     dcval9
+                goto        SetPWM
+
+sdc10           
+                WRITELN     dcval10
+                goto        SetPWM
+
+sdc11           movlw       .11             ; We need to be sure that >9 ->9
                 movwf       DCVAL
-                goto        SelectDC
-
-@sdc1
-                movlw       1               ; If we get here, DCVAL contains an
-                movwf       DCVAL           ; invalid data. Put 1.
-                goto        SelectDC
-
-
-sdc1            movlw       0x1
-                movwf       DCVAL
-                WRITELN dcval1
-                call        SetPWM
-                return
-
-sdc2            movlw       0x2
-                movwf       DCVAL
-                WRITELN dcval2
-                call        SetPWM
-                return
-
-sdc3            movlw       0x3
-                movwf       DCVAL
-                WRITELN dcval3
-                call        SetPWM
-                return
-
-sdc4            movlw       0x4
-                movwf       DCVAL
-                WRITELN dcval4
-                call        SetPWM
-                return
-
-sdc5            movlw       0x5
-                movwf       DCVAL
-                WRITELN dcval5
-                call        SetPWM
-                return
-
-sdc6            movlw       0x6
-                movwf       DCVAL
-                WRITELN dcval6
-                call        SetPWM
-                return
-
-sdc7            movlw       0x7
-                movwf       DCVAL
-                WRITELN dcval7
-                call        SetPWM
-                return
-
-sdc8            movlw       0x8
-                movwf       DCVAL
-                WRITELN dcval8
-                call        SetPWM
-                return
-
-sdc9            movlw       0x9
-                movwf       DCVAL
-                WRITELN dcval9
-                call        SetPWM
-                return
-
+                WRITELN     dcval11
+                goto        SetPWM
 
 SelectFreq      movlw       .1
                 xorwf       FREQ,w
@@ -1011,31 +975,6 @@ ResetAD9833     call        StartReg
                 call        StopReg
                 return
 
-ConfigureAD9833
-                call        StartReg
-                movlw       0x21            ; Control word write, reset
-                call        WriteSPI
-                movlw       0x00
-                call        WriteSPI        ; FREQ0 register write, 14 LSB
-                movfw       LSBH
-                call        WriteSPI
-                movfw       LSBL
-                call        WriteSPI        ; FREQ0 register write, 14 MSB
-                movfw       MSBH
-                call        WriteSPI
-                movfw       MSBL
-                call        WriteSPI
-                movlw       0xC0            ; PHASE0 register write
-                call        WriteSPI
-                movlw       0x00
-                call        WriteSPI
-                movlw       0x20            ; 0x2000 sine, 0x2028 square
-                call        WriteSPI        ; 0x2002 triangle
-                movlw       0x00
-                call        WriteSPI
-                call        StopReg
-                return
-
 
 ; *****************************************************************************
 ; Write a 24-bit number contained in bin to bin+2 (big endian) on the LCD
@@ -1123,156 +1062,128 @@ b2bcd3          movlw       0x33
 ; *****************************************************************************
 ;               LCD Subroutines
 ; *****************************************************************************
-sendspace
-                movlw       ' '
-sendchar
-                bsf         DATALCD,RS      ; RS to 1: send a character
-                bcf         DATALCD,RW      ; RW to 0: write to display
-                call        sendbyte        ; Send the channel number
+
+write_number                                ; Print the number in w
+                bsf         NOZ,0
+                BANKSEL     TMP_1
+                movwf       TMP_1           ; Save the w register in memory
+                movlw       -1
+                movwf       HND
+                movfw       TMP_1
+sub_hnd         addlw       -0x64           ; Substract 100(10)
+                incf        HND, f          ; Hundreds
+                btfsc       STATUS, C       ; Verify if the result is negative
+                goto        sub_hnd
+                addlw       0x64            ; Add 100(b10) (to compensate the
+                                            ; last subtraction)
+                movwf       TMP_1           ; Save the w register in memory
+                movlw       -1
+                movwf       DEC
+                movfw       TMP_1
+sub_dec         addlw       -0xA            ; Substract 10(base10)
+                incf        DEC, f          ;
+                btfsc       STATUS, C       ; Verify if the result is negative
+                goto        sub_dec
+
+                addlw       0x0A            ; Add 10(base10) (to compensate the
+                                            ; last subtraction)
+                movwf       UNT             ; Save the units
+
+
+                bcf         TMP_1,0         ; Flag: avoid unnecessary zeros
+                movfw       HND             ; Send the hundreds
+                btfsc       TMP_1, 0        ; Force to write all numbers
+                goto        force_HND
+                btfsc       STATUS, Z       ; Skip if necessary
+                goto        skip_HND
+force_HND       addlw       '0'             ; Transform it in ASCII
+                call        senddata
+                bsf         TMP_1, 0        ; Force to write successive zeros
+skip_HND        movfw       DEC             ; Send the tenths
+                btfsc       TMP_1, 0        ; Force to write all numbers
+                goto        force_DEC
+                btfsc       STATUS, Z       ; Skip if necessary
+                goto        skip_DEC
+force_DEC       addlw       '0'             ; Transform it in ASCII
+                call        senddata
+                bsf         TMP_1, 0
+skip_DEC        movfw       UNT             ; Send the units (always written)
+                addlw       '0'             ; Transform it in ASCII
+                call        senddata
                 return
 
-write_number                            ; Print the number in w
-                bsf     NOZ,0
-                BANKSEL TMP_1
-                movwf   TMP_1           ; Save the w register in memory
-                movlw   -1
-                movwf   HND
-                movfw   TMP_1
-sub_hnd         addlw   -0x64           ; Substract 100(10)
-                incf    HND, f          ; Hundreds
-                btfsc   STATUS, C       ; Verify if the result is negative
-                goto    sub_hnd
+init
 
-                addlw   0x64            ; Add 100(base10) (to compensate the
-                                        ; last subtraction)
-                movwf   TMP_1           ; Save the w register in memory
-                movlw   -1
-                movwf   DEC
-                movfw   TMP_1
-sub_dec         addlw   -0xA            ; Substract 10(base10)
-                incf    DEC, f          ;
-                btfsc   STATUS, C       ; Verify if the result is negative
-                goto    sub_dec
-
-                addlw   0x0A            ; Add 10(base10) (to compensate the
-                                        ; last subtraction)
-                movwf   UNT             ; Save the units
-
-
-                bcf     TMP_1,0         ; Flag: avoid unnecessary zeros
-                movfw   HND             ; Send the hundreds
-                addlw   0x00            ; Used only to test if w is zero (does
-                                        ; not modify w)
-                btfsc   TMP_1, 0        ; Force to write all numbers
-                goto    force_HND
-                btfsc   STATUS, Z       ; Skip if necessary
-                goto    skip_HND
-force_HND       addlw   '0'             ; Transform it in ASCII
-                bsf     DATALCD,RS      ; RS to 1: we are sending a character
-                bcf     DATALCD,RW      ; RW to 0: we are writing to display
-                call    sendbyte        ; Send the channel number
-                bsf     TMP_1, 0        ; Force to write successive zeros
-skip_HND        movfw   DEC             ; Send the tenths
-                addlw   0x00            ; Used only to test if w is zero
-                                        ; (does not modify w)
-                btfsc   TMP_1, 0        ; Force to write all numbers
-                goto    force_DEC
-                btfsc   STATUS, Z       ; Skip if necessary
-                goto    skip_DEC
-force_DEC       addlw   '0'             ; Transform it in ASCII
-                bsf     DATALCD,RS      ; RS to 1: we are sending a character
-                bcf     DATALCD,RW      ; RW to 0: we are writing to display
-                call    sendbyte        ; Send the channel number
-                bsf     TMP_1, 0
-skip_DEC        movfw   UNT             ; Send the units (always to be written)
-                addlw   '0'             ; Transform it in ASCII
-                bsf     DATALCD,RS      ; RS to 1: we are sending a character
-                bcf     DATALCD,RW      ; RW to 0: we are writing to display
-                call    sendbyte        ; Send the channel number
+                movlw       0x30
+                call        sendcommand
                 return
-
 
 functionset
-                BANKSEL DATALCD
-                bcf     DATALCD,RS
-                bcf     DATALCD,RW
-                movlw   0x02            ; Will be interpreted as nibble mode
+                movlw       0x02        ; Will be interpreted as nibble mode
                                         ; the first nibble will be ignored
                                         ; the second one will be interpreted
                                         ; as 0x20 if the LCD has just been
                                         ; switched on.
-                call    sendbyte
-                call    busywait
-
-functionset2    BANKSEL DATALCD
-                bcf     DATALCD,RS
-                bcf     DATALCD,RW
-                movlw   0x28            ; Two lines display setup
-                call    sendbyte
-                call    busywait
-                retlw   0
+                call        sendcommand
+functionset2
+                movlw       0x28            ; Two lines display setup
+                call        sendcommand
+                retlw       0
 
                 ; Send the command in w to the display LCD configured in the
                 ; nibble mode
 sendbyte
-                BANKSEL DATALCD
-                movwf   TMP             ; Store command temporarily in TMP
-                call    portnibble
-                call    pulse_e         ; Send the first half of the command
-                swapf   TMP,w           ; swap nibbles of TMP, result in w
-                call    portnibble
-                call    pulse_e         ; Send the second half of the command
-                call    busywait
-                retlw   0
+                BANKSEL     DATALCD
+                movwf       TMP             ; Store command temporarily in TMP
+                call        portnibble
+                call        pulse_e         ; Send the first half of the command
+                swapf       TMP,w           ; swap nibbles of TMP, result in w
+                call        portnibble
+                call        pulse_e         ; Send the second half of the command
+                call        busywait
+                retlw       0
+
+sendspace
+                movlw       ' '
+sendchar
+senddata        BANKSEL     DATALCD
+                bsf         DATALCD,RS
+                bcf         DATALCD,RW
+                call        sendbyte
+                return
+
+sendcommand     BANKSEL     DATALCD
+                bcf         DATALCD,RS
+                bcf         DATALCD,RW
+                call        sendbyte
+                return
 
                 ; Activate the display, cursor underline blinking
 displayon
-                BANKSEL DATALCD
-                bcf     DATALCD,RS
-                bcf     DATALCD,RW
-                movlw   0x0C             ; Display on,
-                call    sendbyte
-                retlw   0
+                movlw       0x0C             ; Display on,
+                call        sendcommand
+                return
 
                 ; Clear the display
 displayclear
-                BANKSEL DATALCD
-                bcf     DATALCD,RS
-                bcf     DATALCD,RW
-                movlw   0x01
-                call    sendbyte
-                retlw   0
+                movlw       0x01
+                call        sendcommand
+                return
 
                 ; Put the cursor at home
 displaychome
-                BANKSEL DATALCD
-                bcf     DATALCD,RS
-                bcf     DATALCD,RW
-                movlw   0x02
-                call    sendbyte
-                retlw   0
+                movlw       0x02
+                call        sendcommand
+                return
 
                 ; Set cursor address (passed in w)
 displayaddrset
-                BANKSEL DATALCD
-                bcf     DATALCD,RS
-                bcf     DATALCD,RW
-                iorlw   0x80
-                call    sendbyte
-                retlw   0
-
-                ; w choose method: bit 0=0 decrement =1 increment;
-                ; bit 1=0 display shift off =1 display shift on
-displaycurdir
-                BANKSEL DATALCD
-                bcf     DATALCD,RS
-                bcf     DATALCD,RW
-                iorlw   0x04
-                call    sendbyte
-                retlw   0
+                iorlw       0x80
+                call        sendcommand
+                return
 
 ; *****************************************************************************
-;               Delay routines for LCD
+;               Delay routines
 ; *****************************************************************************
 longdelay       movlw       CHVAL          ; Skip if a button is pressed.
                 btfss       STATUS,Z
@@ -1280,21 +1191,20 @@ longdelay       movlw       CHVAL          ; Skip if a button is pressed.
                 BANKSEL     TRISA
                 bsf         TRISA,RA4
                 bsf         TRISA,RA5
-                bsf         TRISA,RA7
-
                 BANKSEL     PORTA
-    
                 movfw       PORTA
+                andlw       b'00110000'
                 movwf       BSENSE
-
                 call        shortdelay
-
-                movfw       BSENSE
-                BANKSEL     PORTA
-                xorwf       PORTA,w
+                ;BANKSEL     PORTA
+                movfw       PORTA
+                andlw       b'00110000'
+                xorwf       BSENSE,w
                 btfsc       STATUS,Z
                 goto        @cont
-@change
+@change         btfsc       BSENSE,RA5
+                goto        @cont
+
                 btfss       BSENSE,RA4
                 goto        @invpol
 
@@ -1374,9 +1284,6 @@ pulse_e
                 nop
                 nop
                 bcf         DATALCD,E
-                nop
-                nop
-                nop
                 return
 
                 ; Send the upper nibble in W into the data lines
@@ -1395,10 +1302,6 @@ portnibble
                 bsf         DATALCD, DATA6
                 btfsc       TMP1, 7
                 bsf         DATALCD, DATA7
-                nop
-                nop
-                nop
-                nop
                 return
 
 ; *****************************************************************************
@@ -1407,42 +1310,42 @@ portnibble
 ; divid3        is the LSB, divid0 is the MSB
 ; *****************************************************************************
 
-divide          movlw .32               ; 32-bit divide by 16-bit
-                movwf cnt
-                clrf remdrH             ; Clear remainder
-                clrf remdrL
+divide          movlw       .32               ; 32-bit divide by 16-bit
+                movwf       cnt
+                clrf        remdrH             ; Clear remainder
+                clrf        remdrL
 
 dvloop          clrc                    ; Set quotient bit to 0
                                         ; Shift left dividend and quotient
-                rlf divid3,f            ; lsb
-                rlf divid2,f
-                rlf divid1,f
-                rlf divid0,f            ; lsb into carry
-                rlf remdrL,f            ; and then into partial remainder
-                rlf remdrH,f
+                rlf         divid3,f            ; lsb
+                rlf         divid2,f
+                rlf         divid1,f
+                rlf         divid0,f            ; lsb into carry
+                rlf         remdrL,f            ; and then into partial remainder
+                rlf         remdrH,f
 
                 skpnc                   ; Check for overflow
-                goto subd
-                movfw divisH            ; Compare partial remainder and divisor
-                subwf remdrH,w
+                goto        subd
+                movfw       divisH            ; Compare partial remainder and divisor
+                subwf       remdrH,w
                 skpz
-                goto testgt             ; Not equal: test if remdrH is greater
-                movfw divisL            ; High bytes equal: compare low bytes
-                subwf remdrL,w
+                goto        testgt             ; Not equal: test if remdrH is greater
+                movfw       divisL            ; High bytes equal: compare low bytes
+                subwf       remdrL,w
 testgt          skpc                    ; Carry set if remdr >= divis
-                goto remrlt
+                goto        remrlt
 
-subd            movfw divisL            ; Subtract divisor from part. remainder
-                subwf remdrL,f
+subd            movfw       divisL            ; Subtract divisor from part. remainder
+                subwf       remdrL,f
                 skpc                    ; Test for borrow
 
-                decf remdrH,f           ; Subtract borrow
-                movfw divisH
-                subwf remdrH,f
-                bsf divid3,0            ; Set quotient bit to 1
+                decf        remdrH,f           ; Subtract borrow
+                movfw       divisH
+                subwf       remdrH,f
+                bsf         divid3,0            ; Set quotient bit to 1
                      ; Quotient replaces dividend which is lost
-remrlt          decfsz cnt,f
-                goto dvloop
+remrlt          decfsz      cnt,f
+                goto        dvloop
                 return
 
 ; *****************************************************************************
@@ -1458,151 +1361,233 @@ remrlt          decfsz cnt,f
 mult_32_16:
 ; Begin rearrange code
                 nop
-                movfw   aHH
-                movwf   a6
-                movfw   aHL
-                movwf   a5
-                movfw   aLH
-                movwf   aHH
-                movfw   aLL
-                movwf   aHL
+                movfw       aHH
+                movwf       a6
+                movfw       aHL
+                movwf       a5
+                movfw       aLH
+                movwf       aHH
+                movfw       aLL
+                movwf       aHL
 ; End rearrange code
-                clrf    aLH          ; clear partial product
-                clrf    aLL
-                movfw   a6
-                movwf   c4
-                movf    a5,W
-                movwf   c3
-                movf    aHH,W
-                movwf   c2
-                movf    aHL,W
-                movwf   c1
+                clrf        aLH          ; clear partial product
+                clrf        aLL
+                movfw       a6
+                movwf       c4
+                movf        a5,W
+                movwf       c3
+                movf        aHH,W
+                movwf       c2
+                movf        aHL,W
+                movwf       c1
 
-                movlw   0x08
-                movwf   bitcnt
+                movlw       0x08
+                movwf       bitcnt
 
 LOOPUM3216A:
-                rrf     bL, F
-                btfsc   STATUS, C
-                goto    ALUM3216NAP
-                decfsz  bitcnt, F
-                goto    LOOPUM3216A
+                rrf         bL, F
+                btfsc       STATUS, C
+                goto        ALUM3216NAP
+                decfsz      bitcnt, F
+                goto        LOOPUM3216A
 
-                movwf   bitcnt
+                movwf       bitcnt
 
 LOOPUM3216B:
-                rrf     bH, F
-                btfsc   STATUS, C
-                goto    BLUM3216NAP
-                decfsz  bitcnt, F
-                goto    LOOPUM3216B
+                rrf         bH, F
+                btfsc       STATUS, C
+                goto        BLUM3216NAP
+                decfsz      bitcnt, F
+                goto        LOOPUM3216B
 
-                clrf    a6
-                clrf    a5
-                clrf    aHH
-                clrf    aHL
-                retlw   0x00
+                clrf        a6
+                clrf        a5
+                clrf        aHH
+                clrf        aHL
+                retlw       0x00
 
 BLUM3216NAP:
-                BCF     STATUS, C
-                goto    BLUM3216NA
+                BCF         STATUS, C
+                goto        BLUM3216NA
 
 ALUM3216NAP:
-                BCF     STATUS, C
-                goto    ALUM3216NA
+                BCF         STATUS, C
+                goto        ALUM3216NA
 
 ALOOPUM3216:
-                rrf     bL, F
-                btfss   STATUS, C
-                goto    ALUM3216NA
-                movf   c1,W
-                addwf   aHL, F
-                movf    c2,W
-                btfsc   STATUS, C
-                incfsz  c2,W
-                addwf   aHH, F
-                movf    c3,W
-                btfsc   STATUS, C
-                incfsz  c3,W
-                addwf   a5, F
-                movf    c4,W
-                btfsc   STATUS, C
-                incfsz  c4,W
-                addwf   a6, F
+                rrf         bL, F
+                btfss       STATUS, C
+                goto        ALUM3216NA
+                movf        c1,W
+                addwf       aHL, F
+                movf        c2,W
+                btfsc       STATUS, C
+                incfsz      c2,W
+                addwf       aHH, F
+                movf        c3,W
+                btfsc       STATUS, C
+                incfsz      c3,W
+                addwf       a5, F
+                movf        c4,W
+                btfsc       STATUS, C
+                incfsz      c4,W
+                addwf       a6, F
 
 ALUM3216NA:
-                rrf    a6, F
-                rrf    a5, F
-                rrf    aHH, F
-                rrf    aHL, F
-                rrf    aLH, F
-                decfsz  bitcnt, f
-                goto    ALOOPUM3216
+                rrf         a6, F
+                rrf         a5, F
+                rrf         aHH, F
+                rrf         aHL, F
+                rrf         aLH, F
+                decfsz      bitcnt, f
+                goto        ALOOPUM3216
 
-                movlw   0x08
-                movwf   bitcnt
+                movlw       0x08
+                movwf       bitcnt
 
 BLOOPUM3216:
-                rrf    bH, F
-                btfss  STATUS, C
-                goto   BLUM3216NA
-                movf   c1,W
-                addwf  aHL, F
-                movf   c2,W
-                btfsc  STATUS, C
-                incfsz c2,W
-                addwf  aHH, F
-                movf   c3,W
-                btfsc  STATUS, C
-                incfsz c3,W
-                addwf  a5, F
-                movf   c4,W
-                btfsc  STATUS, C
-                incfsz c4,W
-                addwf  a6, F
+                rrf         bH, F
+                btfss       STATUS, C
+                goto        BLUM3216NA
+                movf        c1,W
+                addwf       aHL, F
+                movf        c2,W
+                btfsc       STATUS, C
+                incfsz      c2,W
+                addwf       aHH, F
+                movf        c3,W
+                btfsc       STATUS, C
+                incfsz      c3,W
+                addwf       a5, F
+                movf        c4,W
+                btfsc       STATUS, C
+                incfsz      c4,W
+                addwf       a6, F
 
 BLUM3216NA
-                rrf    a6, F
-                rrf    a5, F
-                rrf    aHH, F
-                rrf    aHL, F
-                rrf    aLH, F
-                rrf    aLL, F
-                decfsz  bitcnt, F
-                goto    BLOOPUM3216
-        nop
-        return
+                rrf         a6, F
+                rrf         a5, F
+                rrf         aHH, F
+                rrf         aHL, F
+                rrf         aLH, F
+                rrf         aLL, F
+                decfsz      bitcnt, F
+                goto        BLOOPUM3216
+                nop
+                return
 
 ; *****************************************************************************
 ; User-defined chars for the LCD display
 ; *****************************************************************************
+; -----------------------------------------------------------------------------
+; Second 2 k word page
+; -----------------------------------------------------------------------------
+                org         0x800
 
-senddata        bsf         DATALCD,RS
-                bcf         DATALCD,RW
-                call        sendbyte
-                return
-
-definechars     BANKSEL     DATALCD
-                bcf         DATALCD,RS
-                bcf         DATALCD,RW
+definechars
                 movlw       0x40
-                call        sendbyte
+                lcall       sendcommand
                 movlw       B'00011000'
-                call        senddata
+                lcall       senddata
                 movlw       B'00010100'
-                call        senddata
+                lcall       senddata
                 movlw       B'00010100'
-                call        senddata
+                lcall       senddata
                 movlw       B'00011011'
-                call        senddata
+                lcall       senddata
                 movlw       B'00000100'
-                call        senddata
+                lcall       senddata
                 movlw       B'00000100'
-                call        senddata
+                lcall       senddata
                 movlw       B'00000011'
-                call        senddata
+                lcall       senddata
                 movlw       B'00000000'
-                call        senddata
+                lcall       senddata
                 return
+
+initdisplay     lcall       init            ; Call three times the init
+                lcall       longdelay
+                lcall       init
+                lcall       longdelay
+                lcall       init
+                lcall       longdelay
+
+                lcall       functionset
+                lcall       displayon
+                lcall       longdelay
+                lcall       functionset
+                lcall       displayon
+
+                lcall       longdelay
+                lcall       functionset
+                lcall       displayon
+                lcall       displayon
+                lcall       displayon
+
+                lcall       definechars
+
+                lcall       displayclear
+                lcall       displaychome
+                return
+
+ConfigureAD9833
+                lcall        StartReg
+                movlw       0x21            ; Control word write, reset
+                lcall        WriteSPI
+                movlw       0x00
+                lcall        WriteSPI        ; FREQ0 register write, 14 LSB
+                movfw       LSBH
+                lcall        WriteSPI
+                movfw       LSBL
+                lcall        WriteSPI        ; FREQ0 register write, 14 MSB
+                movfw       MSBH
+                lcall        WriteSPI
+                movfw       MSBL
+                lcall        WriteSPI
+                movlw       0xC0            ; PHASE0 register write
+                lcall        WriteSPI
+                movlw       0x00
+                lcall        WriteSPI
+                movlw       0x20            ; 0x2000 sine, 0x2028 square
+                lcall        WriteSPI        ; 0x2002 triangle
+                movlw       0x00
+                lcall        WriteSPI
+                lcall        StopReg
+                return
+
+; This is a test mode end of loop. Shows on the display the value of A, B and C
+; (writing separately the high byte and the low byte for each).
+
+testloop        lcall       displayclear
+                movlw       'A'
+                lcall       senddata
+                movfw       A_VH
+                lcall       write_number
+                movlw       ','
+                lcall       senddata
+                movfw       A_VL
+                lcall       write_number
+                lcall       sendspace
+                movlw       'B'
+                lcall       senddata
+                movfw       B_VH
+                lcall       write_number
+                movlw       ','
+                lcall       senddata
+                movfw       B_VL
+                lcall       write_number
+
+                movlw       0x40
+                lcall       displayaddrset  ; Move to the second line
+                movlw       'C'
+                lcall       senddata
+                movfw       C_VH
+                lcall       write_number
+                movlw       ','
+                lcall       senddata
+                movfw       C_VL
+                lcall       write_number
+                lcall       sendspace
+                lgoto        loop
 
                 end
