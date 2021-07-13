@@ -87,7 +87,6 @@ remdrH          equ     0x36
 remdrL          equ     0x37
 
 LOOPCOUNT       equ     0x3C
-TESTMODE        equ     0x3D
 
 ; aHH:aHL:aLH:aLL*bH:bL -> a6:a5:aHH:aHL:aLH:aLL
 
@@ -109,6 +108,7 @@ c4              equ     0x4B
 bitcnt          equ     0x4C
 
 USR             equ     0x4D
+MENUSTATE       equ     0x4E
 
 
 bcd             equ     0x50
@@ -335,32 +335,38 @@ text_reshi      addwf   PCL,f
 text_esr        addwf   PCL,f
                 DT      "ESR = ",0
 freq1           addwf   PCL,f
-                DT      "Freq = 100 Hz",0
+                DT      "f = 100 Hz",0
 freq2           addwf   PCL,f
-                DT      "Freq = 200 Hz",0
+                DT      "f = 200 Hz",0
 freq3           addwf   PCL,f
-                DT      "Freq = 500 Hz",0
+                DT      "f = 500 Hz",0
 freq4           addwf   PCL,f
-                DT      "Freq = 1 kHz",0
+                DT      "f = 1 kHz",0
 freq5           addwf   PCL,f
-                DT      "Freq = 2 kHz",0
+                DT      "f = 2 kHz",0
 freq6           addwf   PCL,f
-                DT      "Freq = 5 kHz",0
+                DT      "f = 5 kHz",0
 freq7           addwf   PCL,f
-                DT      "Freq = 10 kHz",0
+                DT      "f = 10 kHz",0
 freq8           addwf   PCL,f
-                DT      "Freq = 20 kHz",0
+                DT      "f = 20 kHz",0
 freq9           addwf   PCL,f
-                DT      "Freq = 50 kHz",0
+                DT      "f = 50 kHz",0
 freq10          addwf   PCL,f
-                DT      "Freq = 100 kHz",0  ; This fills more or less one page
-
-                org     0x100
+                DT      "f = 100 kHz",0 
 freq11          addwf   PCL,f
-                DT      "Freq = 200 kHz",0
-
+                DT      "f = 200 kHz",0
+automatic       addwf   PCL,f
+                DT      "Automatic C, ESR",0
+manual          addwf   PCL,f
+                DT      "ESR vs freq.",0
+tsetdc          addwf   PCL,f
+                DT      "Set DC",0
+                org     0x100    ; This fills more or less one page
 text_cap        addwf   PCL,f
                 DT      "C = ",0
+testmode        addwf   PCL,f
+                DT      "Diagnostic",0
 
 
 DCVALUE_NO_DC   equ     .6
@@ -520,10 +526,38 @@ DIVL11 = DIVC11 & 0x00FF
 prg
                 lcall       InitAll
                 lcall       SetPWM
-                lgoto       AutomaticMeas
+                movlw       0x1
+                movwf       MENUSTATE
                 ; Main program loop: read ADC values, calculate ESR, repeat.
-loop
-                call        ReadAllADC
+SelectState     lgoto       $+1
+                movlw       .0
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        state1
+                movlw       .1
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        state1
+                movlw       .2
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        state2
+                movlw       .3
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        state3
+                movlw       .4
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        state4
+
+state1          lgoto       AutomaticMeas
+state2          lgoto       ManualMeas
+state3          lgoto       ChooseDc
+state4          lgoto       Test
+
+ManualMeas
+                lcall       ReadAllADC
                 movfw       CHVAL       ; Update the frequency value if needed
                 addwf       FREQ,f
                 call        displayclear
@@ -532,25 +566,10 @@ loop
                 btfss       STATUS,Z
                 goto        buttonzero  ; If the frequency has changed, do not
                                         ; show the incomplete measurement.
-                btfss       PORTA,RA7   ; Check if the button is depressed
-                goto        ChooseDc    ; If yes, go to the DC choice loop
-                movfw       TESTMODE
-                btfsc       STATUS,Z
-                goto        notest
-                lgoto       testloop    ; If we are in test mode, show A B C
-notest
-                lcall       displayclear
+                btfss       PORTA,RA7   ; Check if the button is depressed.
+                goto        Menu        ; If yes, go to the menu.
                 lcall       CalcESR
-                lcall       CalcCapacitance
-                lgoto       $+1
-                xorlw       0x0
-                skpz
-                goto        nocap
-
-                lcall       displaychome
-                lcall       WriteCap
-nocap
-                lgoto       loop
+                lgoto       ManualMeas
 
 CalcESR         movfw       DCVAL
                 xorlw       DCVALUE_NO_DC   ; Check if a DC is present
@@ -582,7 +601,7 @@ checkcurrent    movfw       divisH          ; Check if test current is OK.
                 goto        err_lowcurr     ; to be meaningful
                 btfsc       divisH,7        ; In some cases (A-B) is <0!!!
                 goto        err_lowcurr
-                call        div_32_16       ; Divide! Result in divid0,1,2,3.
+                lcall       div_32_16       ; Divide! Result in divid0,1,2,3.
                 MOV16FF     aHH,aHL,divid0,divid1 ; Multiply times 1525
                 MOV16FF     aLH,aLL,divid2,divid3
                 movlw       0x5         ; Hi-byte of 1525
@@ -599,6 +618,11 @@ outputESR       lcall        display2line
                 call        sendspace
                 movlw       0xF4
                 call        sendchar    ; Write the ohm symbol
+                call        sendspace
+                call        sendspace
+                call        sendspace
+                call        sendspace
+                call        sendspace
                 return
 
 ; *****************************************************************************
@@ -649,7 +673,7 @@ SetNoDC         BANKSEL     TRISCTRL
                 return                          ; That makes sort that DC=0
 
 buttonzero      clrf        CHVAL
-                goto        loop
+                goto        ManualMeas
 
 err_lowosc      call        displayclear
                 movfw       DCVAL               ; If a DC bias is present,
@@ -702,20 +726,66 @@ WriteCap        WRITELN     text_cap
                 call        sendchar   ; Write the farad symbol
                 movlw       'F'
                 call        sendchar   ; Write the farad symbol
+                call        sendspace
+                call        sendspace
+                call        sendspace
+                call        sendspace
+                call        sendspace
                 return
 
+
+; Menu loop
+Menu            lcall       displayclear
+ChooseMenu      lcall       clear1stline    ; Move to the second line                
+                call        selectmenu
+                call        activedelay
+                btfsc       PORTA,RA7
+                goto        SelectState     ; Exit from this loop
+                movfw       CHVAL           ; Update the DC value if needed
+                addwf       MENUSTATE,f
+                clrf        CHVAL
+                goto        ChooseMenu
+
+selectmenu      
+                movlw       .1
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        smenu1
+                movlw       .2
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        smenu2
+                movlw       .3
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        smenu3
+smenu4          movlw       .4
+                movwf       MENUSTATE
+                WRITELN     testmode
+                return
+
+smenu1          movlw       0x1             ; We need to be sure that negative
+                movwf       MENUSTATE       ; values are transformed into 1
+                WRITELN     automatic
+                return
+
+smenu2          WRITELN     manual
+                return
+
+smenu3          WRITELN     tsetdc
+                return
 
 ; In this loop one can choose the DC value to be set.
 ChooseDc        lcall       displayclear
                 WRITELN     dcmenu
-ChooseDcLoop    lcall       display2line  ; Move to the second line
+ChooseDcLoop    lcall       display2line    ; Move to the second line
                 movfw       CHVAL           ; Update the DC value if needed
                 addwf       DCVAL,f
                 clrf        CHVAL
                 lcall       SelectDC        ; Show the DC value
                 call        activedelay
-                btfsc       PORTA,RA7
-                goto        loop            ; Exit from this loop
+                btfss       PORTA,RA7
+                goto        Menu            ; Exit from this loop
                 goto        ChooseDcLoop
 
 SelectDC        btfsc       DCVAL,7         ; Check if DCVAL is negative
@@ -1093,7 +1163,7 @@ functionset
                                         ; the second one will be interpreted
                                         ; as 0x20 if the LCD has just been
                                         ; switched on.
-                lcall        sendcommand
+                lcall       sendcommand
 functionset2
                 movlw       0x28            ; Two lines display setup
                 goto        sendcommand
@@ -1123,23 +1193,23 @@ sendcommand
                 BANKSEL     DATALCD
                 bcf         DATALCD,RS
 simplesend      bcf         DATALCD,RW
-                lgoto        sendbyte
+                lgoto       sendbyte
 
                 ; Activate the display, cursor underline blinking
 displayon
                 movlw       0x0C             ; Display on,
-                lcall        sendcommand
+                lcall       sendcommand
                 return
 
                 ; Clear the display
 displayclear
                 movlw       0x01
-                lgoto        sendcommand
+                lgoto       sendcommand
 
                 ; Put the cursor at home
 displaychome
                 movlw       0x02
-                lgoto        sendcommand
+                lgoto       sendcommand
 
 sendlinespaces  movlw       0x10
                 movwf       TMP_1
@@ -1153,7 +1223,7 @@ clear1stline    lcall       displaychome
                 call        sendlinespaces
                 goto        displaychome
                 
-clear2ndline    lcall        display2line
+clear2ndline    lcall       display2line
                 call        sendlinespaces
                 goto        display2line
 
@@ -1298,6 +1368,15 @@ portnibble
                 return
 
 ; *****************************************************************************
+; User-defined chars for the LCD display
+; *****************************************************************************
+; -----------------------------------------------------------------------------
+; Second 2 k word page
+; -----------------------------------------------------------------------------
+
+                org         0x800
+
+; *****************************************************************************
 ;               Divide 32-bit over 16-bit operands
 ; http://www.piclist.com/techref/microchip/math/div/24by16.htm?key=
 ; divid3        is the LSB, divid0 is the MSB
@@ -1340,15 +1419,6 @@ subd            movfw       divisL  ; Subtract divisor from part. remainder
 remrlt          decfsz      cnt,f
                 goto        dvloop
                 return
-
-; *****************************************************************************
-; User-defined chars for the LCD display
-; *****************************************************************************
-; -----------------------------------------------------------------------------
-; Second 2 k word page
-; -----------------------------------------------------------------------------
-
-                org         0x800
 
 ; *****************************************************************************
 ;               Multiply 32-bit x 16-bit
@@ -1480,9 +1550,7 @@ BLUM3216NA
 
 ; *****************************************************************************
 
-
-
-definechars
+DefineChars
                 movlw       0x40
                 lcall       sendcommand
                 movlw       B'00011000'
@@ -1521,10 +1589,6 @@ InitAll         BANKSEL     ANSEL
                 bcf         TRISCTRL,CTRLC
                 bsf         TRISA,RA7       ; Button as input
                 BANKSEL     PORTA
-                clrf        TESTMODE
-                btfss       PORTA,RA7
-                bsf         TESTMODE,7
-
                 lcall        InitDisplay
 
                 ;WRITELN     text_welcome    ; Greetings and program version.
@@ -1568,7 +1632,7 @@ InitDisplay
                 lcall       displayon
                 lcall       displayon
 
-                lcall       definechars
+                lcall       DefineChars
 
                 lcall       displayclear
                 lcall       displaychome
@@ -1602,8 +1666,13 @@ ConfigureAD9833
 ; This is a test mode end of loop. Shows on the display the value of A, B and C
 ; (writing separately the high byte and the low byte for each).
 
-testloop        call        writeABC
-                lgoto       loop
+Test
+testloop        clrf        CHVAL
+                lcall       ReadAllADC
+                lcall        writeABC
+                btfss       PORTA,RA7   ; Check if the button is depressed.
+                goto        Menu        ; If yes, go to the menu.
+                lgoto       testloop
 
 writeABC        lcall       displayclear
                 movlw       'A'
@@ -1614,7 +1683,7 @@ writeABC        lcall       displayclear
                 lcall       senddata
                 movfw       A_VL
                 lcall       WriteNumber8
-                lcall       sendspace
+                lcall       display2line
                 movlw       'B'
                 lcall       senddata
                 movfw       B_VH
@@ -1623,8 +1692,7 @@ writeABC        lcall       displayclear
                 lcall       senddata
                 movfw       B_VL
                 lcall       WriteNumber8
-
-                lcall       display2line  ; Move to the second line
+                lcall       sendspace
                 movlw       'C'
                 lcall       senddata
                 movfw       C_VH
@@ -1769,6 +1837,9 @@ AutomaticMeas   movlw       0x01
 AutomaticMeasL  clrf        CHVAL
                 lcall       SelectFreq
                 lcall       ReadAllADC
+                btfss       PORTA,RA7   ; Check if the button is depressed.
+                goto        Menu        ; If yes, go to the menu.
+
                 lcall       clear1stline
                 lcall       CalcCapacitance
                 lgoto       $+1
