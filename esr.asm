@@ -32,9 +32,9 @@
    __config (_INTRC_OSC_NOCLKOUT & _WDT_OFF & _PWRTE_ON & _BOREN_ON & _MCLRE_ON & _CP_OFF & _IESO_OFF & _FCMEN_OFF & _DEBUG_OFF)
 
 ; Constants
-OSC_LOTHRESHOLD equ     .35     ; Error if the ampl. A_VH is lower than this.
-OSC_HITHRESHOLD equ     .230    ; Error if the ampl. A_VH is higher than this.
-CURR_THRESHOLD  equ     .2      ; Threshold for high byte of A-B (current)
+OSC_LOTHRESHOLD equ     .70     ; Error if the ampl. A_VH is lower than this.
+OSC_HITHRESHOLD equ     .250    ; Error if the ampl. A_VH is higher than this.
+CURR_THRESHOLD  equ     .4      ; Threshold for high byte of A-B (current)
 
 ; Control lines of the display device
 ; Control port used for LCD display
@@ -353,7 +353,7 @@ freq8           addwf   PCL,f
 freq9           addwf   PCL,f
                 DT      "f = 50 kHz",0
 freq10          addwf   PCL,f
-                DT      "f = 100 kHz",0 
+                DT      "f = 100 kHz",0
 freq11          addwf   PCL,f
                 DT      "f = 200 kHz",0
 automatic       addwf   PCL,f
@@ -528,7 +528,7 @@ prg
                 lcall       SetPWM
                 movlw       0x1
                 movwf       MENUSTATE
-                ; Main program loop: read ADC values, calculate ESR, repeat.
+                ; Main state machine dispatcher
 SelectState     lgoto       $+1
                 movlw       .0
                 xorwf       MENUSTATE,w
@@ -556,6 +556,16 @@ state2          lgoto       ManualMeas
 state3          lgoto       ChooseDc
 state4          lgoto       Test
 
+Greetings       lgoto       $+1
+                WRITELN     text_welcome    ; Greetings and program version.
+                call        display2line    ; Move to the second line
+                WRITELN     text_davide     ; Copyright
+                return
+
+
+; Manual measurement of ESR at a chosen frequency.
+; Let the user choose the frequency with the knob, measure ESR and show it.
+; Repeat :-)
 ManualMeas
                 lcall       ReadAllADC
                 movfw       CHVAL       ; Update the frequency value if needed
@@ -571,13 +581,14 @@ ManualMeas
                 lcall       CalcESR
                 lgoto       ManualMeas
 
+; Calculate the ESR in the current conditions.
 CalcESR         movfw       DCVAL
                 xorlw       DCVALUE_NO_DC   ; Check if a DC is present
                 btfsc       STATUS,Z
-                goto        checkamplitudes
+                goto        checkamplitudes ; If no DC is present, continue
                 movlw       0x0E        ; Put cursor in the top right corner
                 call        displayaddrset
-                call        writedc
+                call        writedc     ; Write the symbol +/-DC
 checkamplitudes movfw       A_VH        ; Check if oscillator amplitude is OK.
                 sublw       OSC_LOTHRESHOLD
                 btfsc       STATUS,C
@@ -595,12 +606,13 @@ checkamplitudes movfw       A_VH        ; Check if oscillator amplitude is OK.
                 SUB16BIT    divid0, divid1, C_VH, C_VL  ; divid -= C
                 MOV16FF     divisH, divisL, A_VH, A_VL  ; Transfer A in divis
                 SUB16BIT    divisH, divisL, B_VH, B_VL  ; divis -= B
+
+                btfss       STATUS,C        ; In some cases (A-B) is <0!!!
+                goto        err_lowcurr
 checkcurrent    movfw       divisH          ; Check if test current is OK.
                 sublw       CURR_THRESHOLD  ; (A-B) should be greater than a
                 btfsc       STATUS,C        ; certain threshold for the ESR
                 goto        err_lowcurr     ; to be meaningful
-                btfsc       divisH,7        ; In some cases (A-B) is <0!!!
-                goto        err_lowcurr
                 lcall       div_32_16       ; Divide! Result in divid0,1,2,3.
                 MOV16FF     aHH,aHL,divid0,divid1 ; Multiply times 1525
                 MOV16FF     aLH,aLL,divid2,divid3
@@ -612,7 +624,7 @@ checkcurrent    movfw       divisH          ; Check if test current is OK.
                 MOV16FF     bin+0, bin+1, aHH, aHL
                 MOV16FF     bin+2, bin+3, aLH, aLL
                 ; Write the second line (ESR result)
-outputESR       lcall        display2line
+outputESR       lcall       display2line
                 WRITELN     text_esr
                 call        WriteNumber24
                 call        sendspace
@@ -627,7 +639,7 @@ outputESR       lcall        display2line
 
 ; *****************************************************************************
 
-ReadAllADC      READV       CTRLA, A_VH, A_VL ; read A, B and C
+ReadAllADC      READV       CTRLA, A_VH, A_VL   ; Read A, B and C
                 READV       CTRLB, B_VH, B_VL
                 READV       CTRLC, C_VH, C_VL
                 return
@@ -636,14 +648,14 @@ writedc         movfw       DCVAL
                 sublw       DCVALUE_NO_DC
                 btfsc       STATUS,C
                 goto        dcneg
-                movlw       '+'         ; Write '+DC' if appropriate
+                movlw       '+'                 ; Write '+DC' if appropriate
                 call        senddata
-                movlw       0x00        ; Special character ("DC")
+                movlw       0x00                ; Special character ("DC")
                 call        senddata
                 return
-dcneg           movlw       '-'         ; Write '-DC' if appropriate
+dcneg           movlw       '-'                 ; Write '-DC' if appropriate
                 call        senddata
-                movlw       0x00        ; Special character ("DC")
+                movlw       0x00                ; Special character ("DC")
                 call        senddata
                 return
 
@@ -685,16 +697,17 @@ err_lowosc      call        displayclear
                 return
 
 err_lowcurr
-nosig           WRITELN     nosignal
+nosig           call        display2line
+                WRITELN     nosignal
                 call        activedelay
                 return
 
-err_hiosc       call        displayclear
+err_hiosc       call        display2line
                 WRITELN     text_hiosc
                 call        activedelay
                 return
 
-err_reshi       call        displayclear
+err_reshi       call        display2line
                 WRITELN     text_reshi
                 call        activedelay
                 return
@@ -704,7 +717,7 @@ readadc
                 call        activedelay
                 clrf        STOREH
                 clrf        STOREL
-                movlw       0x40
+                movlw       0x80
                 movwf       CNT
 @llo            bsf         ADCON0,GO
                 btfsc       ADCON0,GO
@@ -736,7 +749,7 @@ WriteCap        WRITELN     text_cap
 
 ; Menu loop
 Menu            lcall       displayclear
-ChooseMenu      lcall       clear1stline    ; Move to the second line                
+ChooseMenu      lcall       clear1stline    ; Move to the second line
                 call        selectmenu
                 call        activedelay
                 btfsc       PORTA,RA7
@@ -746,7 +759,10 @@ ChooseMenu      lcall       clear1stline    ; Move to the second line
                 clrf        CHVAL
                 goto        ChooseMenu
 
-selectmenu      
+selectmenu      movlw       .5
+                subwf       MENUSTATE,w
+                btfsc       STATUS,C
+                goto        smenu1
                 movlw       .1
                 xorwf       MENUSTATE,w
                 btfsc       STATUS,Z
@@ -1013,15 +1029,6 @@ WriteSPI        BANKSEL     SSPBUF
                 movfw       SSPBUF
                 return
 
-ResetAD9833     call        StartReg
-                movlw       0x01            ; Control word write, reset
-                call        WriteSPI
-                movlw       0x00
-                call        WriteSPI        ; FREQ0 register write, 14 LSB
-                call        StopReg
-                return
-
-
 ; *****************************************************************************
 ; Write a 24-bit number contained in bin to bin+2 (big endian) on the LCD
 ; *****************************************************************************
@@ -1041,7 +1048,8 @@ WRITE2DIGITS    MACRO       BB
 
 WriteNumber24
                 clrf        NOZ
-                call        b2bcd
+                lcall        b2bcd
+                lgoto       $+1
                 WRITE2DIGITS bcd
                 swapf       bcd+1,w
                 andlw       0x0F
@@ -1055,53 +1063,6 @@ WriteNumber24
                 ;WRITE2DIGITS bcd+3
                 ;WRITE2DIGITS bcd+4     ; Those figures are not significative
                 return
-
-; *****************************************************************************
-; Convert 32-bit binary number at <bin> into a bcd number
-; at <bcd>. Uses Mike Keitz's procedure for handling bcd
-; adjust; Modified Microchip AN526 for 32-bits.
-; http://www.piclist.com/tecHREF/microchip/math/radix/b2bp-32b10d.htm
-; bin is the MSB, bin+3 is the LSB
-; *****************************************************************************
-
-b2bcd
-                movlw       .32              ; 32-bits
-                movwf       ii              ; make cycle counter
-                clrf        bcd             ; clear result area
-                clrf        bcd+1
-                clrf        bcd+2
-                clrf        bcd+3
-                clrf        bcd+4
-
-b2bcd2          movlw       bcd             ; make pointer
-                movwf       fsr
-                movlw       5
-                movwf       cnt
-
-; Mike's routine:
-
-b2bcd3          movlw       0x33
-                addwf       indf,f          ; add to both nybbles
-                btfsc       indf,3          ; test if low result > 7
-                andlw       0xf0            ; low result >7 so take the 3 out
-                btfsc       indf,7          ; test if high result > 7
-                andlw       0x0f            ; high result > 7 so ok
-                subwf       indf,f          ; any results <= 7, subtract back
-                incf        fsr,f           ; point to next
-                decfsz      cnt,f
-                goto        b2bcd3
-                rlf         bin+3,f         ; get another bit
-                rlf         bin+2,f
-                rlf         bin+1,f
-                rlf         bin+0,f
-                rlf         bcd+4,f         ; put it into bcd
-                rlf         bcd+3,f
-                rlf         bcd+2,f
-                rlf         bcd+1,f
-                rlf         bcd+0,f
-                decfsz      ii,f            ; all done?
-                goto        b2bcd2          ; no, loop
-                return                      ; yes
 
 ; *****************************************************************************
 ;               LCD Subroutines
@@ -1222,7 +1183,7 @@ loopf           movlw       ' '
 clear1stline    lcall       displaychome
                 call        sendlinespaces
                 goto        displaychome
-                
+
 clear2ndline    lcall       display2line
                 call        sendlinespaces
                 goto        display2line
@@ -1250,12 +1211,10 @@ activedelay
 @loop           movfw       CHVAL          ; Skip if a button is depressed.
                 btfss       STATUS,Z
                 return
-                ;BANKSEL     PORTA
                 movfw       PORTA
                 andlw       b'00010000'
                 movwf       BSENSE
                 call        shortdelay
-                ;BANKSEL     PORTA
                 movfw       PORTA
                 andlw       b'00010000'
                 xorwf       BSENSE,w
@@ -1297,7 +1256,6 @@ longdelay
                 decfsz      LDR,f
                 goto        $-3
                 return
-
 
 shortdelay
                 BANKSEL     SDR
@@ -1375,6 +1333,64 @@ portnibble
 ; -----------------------------------------------------------------------------
 
                 org         0x800
+
+; *****************************************************************************
+; Convert 32-bit binary number at <bin> into a bcd number
+; at <bcd>. Uses Mike Keitz's procedure for handling bcd
+; adjust; Modified Microchip AN526 for 32-bits.
+; http://www.piclist.com/tecHREF/microchip/math/radix/b2bp-32b10d.htm
+; bin is the MSB, bin+3 is the LSB
+; *****************************************************************************
+
+b2bcd
+                movlw       .32              ; 32-bits
+                movwf       ii              ; make cycle counter
+                clrf        bcd             ; clear result area
+                clrf        bcd+1
+                clrf        bcd+2
+                clrf        bcd+3
+                clrf        bcd+4
+
+b2bcd2          movlw       bcd             ; make pointer
+                movwf       fsr
+                movlw       5
+                movwf       cnt
+
+; Mike's routine:
+
+b2bcd3          lgoto       $+1
+                movlw       0x33
+                addwf       indf,f          ; add to both nybbles
+                btfsc       indf,3          ; test if low result > 7
+                andlw       0xf0            ; low result >7 so take the 3 out
+                btfsc       indf,7          ; test if high result > 7
+                andlw       0x0f            ; high result > 7 so ok
+                subwf       indf,f          ; any results <= 7, subtract back
+                incf        fsr,f           ; point to next
+                decfsz      cnt,f
+                goto        b2bcd3
+                rlf         bin+3,f         ; get another bit
+                rlf         bin+2,f
+                rlf         bin+1,f
+                rlf         bin+0,f
+                rlf         bcd+4,f         ; put it into bcd
+                rlf         bcd+3,f
+                rlf         bcd+2,f
+                rlf         bcd+1,f
+                rlf         bcd+0,f
+                decfsz      ii,f            ; all done?
+                goto        b2bcd2          ; no, loop
+                return                      ; yes
+
+
+ResetAD9833     lcall       StartReg
+                movlw       0x01            ; Control word write, reset
+                lcall       WriteSPI
+                movlw       0x00
+                lcall       WriteSPI        ; FREQ0 register write, 14 LSB
+                lcall       StopReg
+                return
+
 
 ; *****************************************************************************
 ;               Divide 32-bit over 16-bit operands
@@ -1462,7 +1478,6 @@ LOOPUM3216A:
                 goto        ALUM3216NAP
                 decfsz      bitcnt, F
                 goto        LOOPUM3216A
-
                 movwf       bitcnt
 
 LOOPUM3216B:
@@ -1589,12 +1604,8 @@ InitAll         BANKSEL     ANSEL
                 bcf         TRISCTRL,CTRLC
                 bsf         TRISA,RA7       ; Button as input
                 BANKSEL     PORTA
-                lcall        InitDisplay
-
-                ;WRITELN     text_welcome    ; Greetings and program version.
-
-                ;lcall        display2line    ; Move to the second line
-                ;WRITELN     text_davide     ; Copyright
+                lcall       InitDisplay
+                lcall       Greetings
 
                 clrf        FREQ            ; Standard values for frequency
                 movlw       0x4
@@ -1669,10 +1680,22 @@ ConfigureAD9833
 Test
 testloop        clrf        CHVAL
                 lcall       ReadAllADC
-                lcall        writeABC
+                lgoto       $+1
+                movfw       CHVAL           ; Update the DC value if needed
+                addwf       FREQ,f
+                movfw       CHVAL
+                skpz
+                goto        changeFreq
+                lcall       writeABC
                 btfss       PORTA,RA7   ; Check if the button is depressed.
-                goto        Menu        ; If yes, go to the menu.
+                goto        Menu        ; If yes, go to the menu.                
                 lgoto       testloop
+
+changeFreq      clrf        CHVAL       ; Change the test frequency.
+                lcall       displayclear
+                lcall       SelectFreq
+                lgoto       testloop
+
 
 writeABC        lcall       displayclear
                 movlw       'A'
@@ -1714,8 +1737,8 @@ ConfigureADC   ; Configure the ADC, read on A0.
                 bsf         ANSEL,2
                 bsf         ANSEL,3
                 BANKSEL     ADCON1
-                bcf         ADCON1,VCFG1
-                bsf         ADCON1,VCFG0
+                bsf         ADCON1,VCFG1    ; Negative Vref on AN2
+                bsf         ADCON1,VCFG0    ; Positive Vref on AN3
                 bsf         ADCON1,ADFM ; Right justified ADC result.
                 BANKSEL     ADCON0
                 bcf         ADCON0,7    ; Set Fosc/8 (ok for Fosc=4MHz)
@@ -1776,16 +1799,22 @@ CalcCapacitance
                 ; Here divid0 and divid1 contain the integer part and
                 ; divid2 and divid3 contain the fraction part. In other
                 ; words, 65536 represent 1.0, 32768 represent 0.5 and so on.
-
-                ; If the ratio is greater than 2, continue. Otherwise, the ESR
+                ; If the ratio is greater than 1, continue. Otherwise, the ESR
                 ; may affect the measurement too much.
-                movlw       low  .2
+                movlw       low  .1
+                subwf       divid3,w
+                movlw       high .1
+                btfss       STATUS,C
+                addlw       .1
+                subwf       divid2,w
+                movlw       low  .8192
+                btfss       STATUS,C
+                addlw       .1
                 subwf       divid1,w
-                movlw       high .2
+                movlw       high .8192
                 btfss       STATUS,C
                 addlw       .1
                 subwf       divid0,w
-
                 btfsc       STATUS,C
                 retlw       FREQHI      ; If the ratio<2, error code FREQHI
 
@@ -1832,7 +1861,9 @@ CalcCapacitance
 
 ; Try to measure automatically the capacitance and the ESR. Cycle the frequency
 ; starting from the lowest value until a capacitance can be read.
-AutomaticMeas   movlw       0x01
+AutomaticMeas   lcall       displayclear
+                lcall       display2line
+                movlw       0x01
                 movwf       FREQ
 AutomaticMeasL  clrf        CHVAL
                 lcall       SelectFreq
