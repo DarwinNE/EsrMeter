@@ -54,6 +54,7 @@ DATA7           equ     4
 PORTFSYNC       equ     PORTC
 TRISFSYNC       equ     TRISC
 FSYNC           equ     RC4
+VSYNC           equ     RC7
 
 
 ; These registers must be in the same page of the DATALCD register
@@ -194,6 +195,10 @@ READV           MACRO       CTRL, STH,STL
                 BANKSEL     CTRLP
                 clrf        CTRLP
                 bsf         CTRLP,CTRL
+                btfsc       CTRLP,VSYNC ; Synchronise with the oscillator
+                goto        $-1
+                btfss       CTRLP,VSYNC
+                goto        $-1
                 call        readadc
                 movfw       STOREH
                 movwf       STH
@@ -365,6 +370,8 @@ tsetdc          addwf   PCL,f
                 org     0x100    ; This fills more or less one page
 text_cap        addwf   PCL,f
                 DT      "C = ",0
+text_battery    addwf   PCL,f
+                DT      "Battery",0
 testmode        addwf   PCL,f
                 DT      "Diagnostic",0
 
@@ -425,9 +432,7 @@ dcval11         addwf   PCL,f
 nosignal        addwf   PCL,f
                 DT      "      ----",0
 
-currlow         addwf   PCL,f
-                DT      "Test current low"
-DIVC1  = .11
+DIVC1  = .10  ; 11 should be better?
 DIVC2  = .21
 DIVC3  = .53
 DIVC4  = .105
@@ -562,25 +567,6 @@ Greetings       lgoto       $+1
                 WRITELN     text_davide     ; Copyright
                 return
 
-
-; Manual measurement of ESR at a chosen frequency.
-; Let the user choose the frequency with the knob, measure ESR and show it.
-; Repeat :-)
-ManualMeas
-                lcall       ReadAllADC
-                movfw       CHVAL       ; Update the frequency value if needed
-                addwf       FREQ,f
-                call        displayclear
-                call        SelectFreq
-                movfw       CHVAL
-                btfss       STATUS,Z
-                goto        buttonzero  ; If the frequency has changed, do not
-                                        ; show the incomplete measurement.
-                btfss       PORTA,RA7   ; Check if the button is depressed.
-                goto        Menu        ; If yes, go to the menu.
-                lcall       CalcESR
-                lgoto       ManualMeas
-
 ; Calculate the ESR in the current conditions.
 CalcESR         movfw       DCVAL
                 xorlw       DCVALUE_NO_DC   ; Check if a DC is present
@@ -684,8 +670,6 @@ SetNoDC         BANKSEL     TRISCTRL
                 bsf         TRISCTRL, PWMPIN    ; Port PWM as input
                 return                          ; That makes sort that DC=0
 
-buttonzero      clrf        CHVAL
-                goto        ManualMeas
 
 err_lowosc      call        displayclear
                 movfw       DCVAL               ; If a DC bias is present,
@@ -717,7 +701,7 @@ readadc
                 call        activedelay
                 clrf        STOREH
                 clrf        STOREL
-                movlw       0x80
+                movlw       0x40
                 movwf       CNT
 @llo            bsf         ADCON0,GO
                 btfsc       ADCON0,GO
@@ -789,6 +773,10 @@ smenu2          WRITELN     manual
                 return
 
 smenu3          WRITELN     tsetdc
+                return
+
+WriteBattery    lgoto       $+1
+                WRITELN     text_battery
                 return
 
 ; In this loop one can choose the DC value to be set.
@@ -1019,14 +1007,6 @@ StartReg        BANKSEL     PORTFSYNC
 
 StopReg         BANKSEL     PORTFSYNC
                 bsf         PORTFSYNC,FSYNC
-                return
-
-WriteSPI        BANKSEL     SSPBUF
-                movwf       SSPBUF
-                BANKSEL     SSPSTAT
-                btfss       SSPSTAT, BF
-                goto        $-1
-                movfw       SSPBUF
                 return
 
 ; *****************************************************************************
@@ -1602,6 +1582,7 @@ InitAll         BANKSEL     ANSEL
                 bcf         TRISCTRL,CTRLA
                 bcf         TRISCTRL,CTRLB
                 bcf         TRISCTRL,CTRLC
+                bsf         TRISCTRL,VSYNC  ; Sync freq. as input
                 bsf         TRISA,RA7       ; Button as input
                 BANKSEL     PORTA
                 lcall       InitDisplay
@@ -1614,13 +1595,15 @@ InitAll         BANKSEL     ANSEL
                 movlw       DCVALUE_NO_DC   ; Standard value for DC (no DC)
                 movwf       DCVAL
 
+                lcall       longdelay
+                lcall       longdelay
+                lcall       longdelay
                 lcall       ConfigureADC
+                lcall       MeasBattery
                 lcall       ConfigureSPI
                 lcall       ResetAD9833
-
-                lcall        longdelay
-                lcall        longdelay
-                lcall        longdelay
+                lcall       longdelay
+                lcall       longdelay
                 return
 
 InitDisplay
@@ -1672,6 +1655,35 @@ ConfigureAD9833
                 movlw       0x00
                 lcall       WriteSPI
                 lcall       StopReg
+                return
+
+; Measure and show the battery voltage. Consider a voltage divider made by
+; 47kohm + 22kohm resistances.
+
+MeasBattery     BANKSEL     ADCON0
+                bsf         ADCON0,2    ; Input in channel 1
+                lcall       longdelay
+                lcall       readadc     ; Read the value
+                lcall       displayclear
+                bcf         ADCON0,2    ; Input in channel 0
+                MOV16FF     aLH, aLL, STOREH, STOREL
+                clrf        aHH
+                clrf        aHL
+                movlw       high .2421
+                movwf       bH
+                movlw       low .2421
+                movwf       bL
+                lcall       mult_32_16
+                MOV16FF     bin+0, bin+1, aHH, aHL
+                MOV16FF     bin+2, bin+3, aLH, aLL
+                lcall       WriteBattery
+                lcall       display2line
+                lcall       WriteNumber24
+                lcall       sendspace
+                movlw       'V'
+                lcall       sendchar
+                lcall       longdelay
+                lcall       longdelay
                 return
 
 ; This is a test mode end of loop. Shows on the display the value of A, B and C
@@ -1734,6 +1746,7 @@ ConfigureADC   ; Configure the ADC, read on A0.
                 bsf         TRISA,3
                 BANKSEL     ANSEL
                 bsf         ANSEL,0     ; Use as A0 as an analog input.
+                bsf         ANSEL,1     ; Use as A1 as an battery input.
                 bsf         ANSEL,2
                 bsf         ANSEL,3
                 BANKSEL     ADCON1
@@ -1747,8 +1760,14 @@ ConfigureADC   ; Configure the ADC, read on A0.
                 bcf         ADCON0,4
                 bcf         ADCON0,3
                 bcf         ADCON0,2
-                BANKSEL     TRISC
-                clrf        TRISC
+                return
+
+WriteSPI        BANKSEL     SSPBUF
+                movwf       SSPBUF
+                BANKSEL     SSPSTAT
+                btfss       SSPSTAT, BF
+                goto        $-1
+                movfw       SSPBUF
                 return
 
 ConfigureSPI    ; Configure SPI communication with AD9833
@@ -1858,6 +1877,28 @@ CalcCapacitance
                 MOV16FF     CAPHH, CAPHL, aHH, aHL
                 MOV16FF     CAPLH, CAPLL, aLH, aLL
                 retlw       0x0         ; Everything was OK.
+
+; Manual measurement of ESR at a chosen frequency.
+; Let the user choose the frequency with the knob, measure ESR and show it.
+; Repeat :-)
+ManualMeas
+                lcall       ReadAllADC
+                movfw       CHVAL       ; Update the frequency value if needed
+                addwf       FREQ,f
+                call        displayclear
+                call        SelectFreq
+                btfss       PORTA,RA7   ; Check if the button is depressed.
+                goto        Menu        ; If yes, go to the menu.
+                lgoto       $+1
+                movfw       CHVAL
+                btfss       STATUS,Z
+                goto        buttonzero  ; If the frequency has changed, do not
+                                        ; show the incomplete measurement.
+                lcall       CalcESR
+                lgoto       ManualMeas
+
+buttonzero      clrf        CHVAL
+                goto        ManualMeas
 
 ; Try to measure automatically the capacitance and the ESR. Cycle the frequency
 ; starting from the lowest value until a capacitance can be read.
