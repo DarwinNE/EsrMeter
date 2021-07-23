@@ -32,9 +32,9 @@
    __config (_INTRC_OSC_NOCLKOUT & _WDT_OFF & _PWRTE_ON & _BOREN_ON & _MCLRE_ON & _CP_OFF & _IESO_OFF & _FCMEN_OFF & _DEBUG_OFF)
 
 ; Constants
-OSC_LOTHRESHOLD equ     .70     ; Error if the ampl. A_VH is lower than this.
-OSC_HITHRESHOLD equ     .250    ; Error if the ampl. A_VH is higher than this.
-CURR_THRESHOLD  equ     .4      ; Threshold for high byte of A-B (current)
+OSC_LOTHRESHOLD equ     .35     ; Error if the ampl. A_VH is lower than this.
+OSC_HITHRESHOLD equ     .230    ; Error if the ampl. A_VH is higher than this.
+CURR_THRESHOLD  equ     .2      ; Threshold for high byte of A-B (current)
 
 ; Control lines of the display device
 ; Control port used for LCD display
@@ -1637,11 +1637,11 @@ ConfigureAD9833
                 movlw       0x21            ; Control word write, reset
                 lcall        WriteSPI
                 movlw       0x00
-                lcall        WriteSPI        ; FREQ0 register write, 14 LSB
+                lcall        WriteSPI       ; FREQ0 register write, 14 LSB
                 movfw       LSBH
                 lcall        WriteSPI
                 movfw       LSBL
-                lcall        WriteSPI        ; FREQ0 register write, 14 MSB
+                lcall        WriteSPI       ; FREQ0 register write, 14 MSB
                 movfw       MSBH
                 lcall        WriteSPI
                 movfw       MSBL
@@ -1669,8 +1669,8 @@ MeasBattery     BANKSEL     ADCON0
                 MOV16FF     aLH, aLL, STOREH, STOREL
                 clrf        aHH
                 clrf        aHL
-                movlw       high .2421
-                movwf       bH
+                movlw       high .2421  ; Magic number calculated for a voltage
+                movwf       bH          ; divider composed by 47kohm + 22kohm
                 movlw       low .2421
                 movwf       bL
                 lcall       mult_32_16
@@ -1818,25 +1818,17 @@ CalcCapacitance
                 ; Here divid0 and divid1 contain the integer part and
                 ; divid2 and divid3 contain the fraction part. In other
                 ; words, 65536 represent 1.0, 32768 represent 0.5 and so on.
-                ; If the ratio is greater than 1, continue. Otherwise, the ESR
+                ; If the ratio is greater than 2, continue. Otherwise, the ESR
                 ; may affect the measurement too much.
-                movlw       low  .1
-                subwf       divid3,w
-                movlw       high .1
-                btfss       STATUS,C
-                addlw       .1
-                subwf       divid2,w
-                movlw       low  .8192
-                btfss       STATUS,C
-                addlw       .1
+                movlw       low  .2
                 subwf       divid1,w
-                movlw       high .8192
+                movlw       high .2
                 btfss       STATUS,C
                 addlw       .1
                 subwf       divid0,w
+
                 btfsc       STATUS,C
                 retlw       FREQHI      ; If the ratio<2, error code FREQHI
-
                 MOV16FF     aHH,aHL,divid0,divid1
                 MOV16FF     aLH,aLL,divid2,divid3
                 movlw       0x1         ; Put 1 in b
