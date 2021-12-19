@@ -1956,12 +1956,8 @@ AutomaticMeasL  clrf        CHVAL
                 xorlw       0x0         ; Check if the capacitance is OK
                 skpz
                 goto        nocap1
-                decf        FREQ,w      ; If ok, decrement capacity
-                xorlw       0xFF        ; (if possible, of course!)
-                btfss       STATUS,Z
                 call        testlower   ; Test a lower frequency
                 movwf       ESRM
-
                 lcall       displaychome
                 lcall       WriteCap
                 lgoto       $+1
@@ -2009,7 +2005,11 @@ AutomaticMeasL  clrf        CHVAL
                 ; if C > 80 µF, ESR is measured at f = 10 kHz
                 goto        meas10
 
-testlower       decf        FREQ,f
+testlower       decf        FREQ,w      ; If ok, decrement capacity
+                xorlw       0xFF        ; (if possible, of course!)
+                btfsc       STATUS,Z
+                retlw       MEASUREESR
+                decf        FREQ,f
                 lcall       SelectFreq
                 lcall       ReadAllADC
                 btfss       PORTA,RA7   ; Check if the button is depressed.
@@ -2017,8 +2017,8 @@ testlower       decf        FREQ,f
                 lcall       CalcCapacitance
                 xorlw       0x0         ; Check if the capacitance is OK
                 skpnz                   ; Do not measure ESR
-                ;goto        testlower
-                retlw       NOESR          ; If not, we just do not care, the old
+                goto        testlower
+                ;retlw       NOESR          ; If not, we just do not care, the old
                 incf        FREQ,f      ; value is kept in memory
                 lcall       SelectFreq  ; this is important to set the correct
                 retlw       MEASUREESR           ; measuring unit. Measure ESR
