@@ -1740,6 +1740,8 @@ MeasBattery     BANKSEL     ADCON0
 ; (writing separately the high byte and the low byte for each).
 
 Test
+                movlw       ACTIVE
+                movwf       WRITEF
 testloop        clrf        CHVAL
                 lcall       ReadAllADC
                 lgoto       $+1
