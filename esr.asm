@@ -70,6 +70,10 @@ ESRM            equ     0x26        ; Flag: measure ESR or not.
 MEASUREESR      equ     0x00        ; Constants for ESRM
 NOESR           equ     0x01
 
+WRITEF          equ     0x27        ; Write the frequency when calling setFreq
+ACTIVE          equ     0x01
+NOACTIVE        equ     0x00
+
 TMP_1           equ     0x2A
 HND             equ     0x2B
 DEC             equ     0x2C
@@ -297,6 +301,7 @@ MOV16FF         MACRO       DESTH, DESTL, SOURCEH, SOURCEL
 
                 ; Program the correct frequency and configure the AD9833
 PROGFREQ        MACRO       LSB, MSB, message, DIVHA, DIVLA, UNI
+                local           exit
                 movlw       (LSB & 0xFF00)>>8
                 movwf       LSBH
                 movlw       (LSB & 0x00FF)
@@ -312,7 +317,11 @@ PROGFREQ        MACRO       LSB, MSB, message, DIVHA, DIVLA, UNI
                 lcall       ConfigureAD9833
                 movlw       UNI
                 movwf       UNIT
+                movfw       WRITEF      ; Check if to write frequency
+                skpnz
+                goto        exit
                 WRITELN     message
+exit
                 ENDM
 
 ; *****************************************************************************
@@ -342,9 +351,9 @@ text_reshi      addwf   PCL,f
 text_esr        addwf   PCL,f
                 DT      "ESR = ",0
 freq0           addwf   PCL,f
-                DT      "f = 50 Hz",0
+                DT      "f = 20 Hz",0
 freq1           addwf   PCL,f
-                DT      "f = 100 Hz",0
+                DT      "f = 75 Hz",0
 freq2           addwf   PCL,f
                 DT      "f = 200 Hz",0
 freq3           addwf   PCL,f
@@ -379,7 +388,6 @@ text_battery    addwf   PCL,f
                 DT      "Battery",0
 testmode        addwf   PCL,f
                 DT      "Diagnostic",0
-
 
 DCVALUE_NO_DC   equ     .6
 
@@ -434,11 +442,14 @@ dcval10          addwf   PCL,f
 dcval11         addwf   PCL,f
                 DT      "DC = 2 V      ",0
 
+                org     0x200    ; This fills more or less one page
 nosignal        addwf   PCL,f
                 DT      "      ----",0
 
-DIVC0  = .5271
-DIVC1  = .10541
+measuring       addwf   PCL,f
+                DT      "Measuring...",0
+DIVC0  = .2108
+DIVC1  = .7906
 DIVC2  = .21083
 DIVC3  = .53
 DIVC4  = .105
@@ -450,7 +461,7 @@ DIVC9  = .5271
 DIVC10 = .10541
 DIVC11 = .21083
 
-FREQUENCY = .50
+FREQUENCY = .20
 VALUE = .10736*FREQUENCY/.1000
 MSB0 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB0 = (VALUE & 0x3FFF) | 0x4000
@@ -458,7 +469,7 @@ DIVH0 = (DIVC0 & 0xFF00) >> .8
 DIVL0 = DIVC0 & 0x00FF
 UNIT0 = 'm'
 
-FREQUENCY = .100
+FREQUENCY = .75
 VALUE = .10736*FREQUENCY/.1000
 MSB1 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB1 = (VALUE & 0x3FFF) | 0x4000
@@ -474,15 +485,13 @@ DIVH2 = (DIVC2 & 0xFF00) >> .8
 DIVL2 = DIVC2 & 0x00FF
 UNIT2 = 'm'
 
-
 FREQUENCY = .500
 VALUE = .10736*FREQUENCY/.1000
 MSB3 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB3 = (VALUE & 0x3FFF) | 0x4000
 DIVH3 = (DIVC3 & 0xFF00) >> .8
 DIVL3 = DIVC3 & 0x00FF
-UNIT3 = 'u'
-
+UNIT3 = 'm'
 
 FREQUENCY = .1000
 VALUE = .10736*FREQUENCY/.1000
@@ -490,8 +499,7 @@ MSB4 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB4 = (VALUE & 0x3FFF) | 0x4000
 DIVH4 = (DIVC4 & 0xFF00) >> .8
 DIVL4 = DIVC4 & 0x00FF
-UNIT4 = 'u'
-
+UNIT4 = 0xE4
 
 FREQUENCY = .2000
 VALUE = .10736*FREQUENCY/.1000
@@ -499,8 +507,7 @@ MSB5 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB5 = (VALUE & 0x3FFF) | 0x4000
 DIVH5 = (DIVC5 & 0xFF00) >> .8
 DIVL5 = DIVC5 & 0x00FF
-UNIT5 = 'u'
-
+UNIT5 = 0xE4
 
 FREQUENCY = .5000
 VALUE = .10736*FREQUENCY/.1000
@@ -508,7 +515,7 @@ MSB6 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB6 = (VALUE & 0x3FFF) | 0x4000
 DIVH6 = (DIVC6 & 0xFF00) >> .8
 DIVL6 = DIVC6 & 0x00FF
-UNIT6 = 'u'
+UNIT6 = 0xE4
 
 FREQUENCY = .10000
 VALUE = .10736*FREQUENCY/.1000
@@ -516,8 +523,7 @@ MSB7 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB7 = (VALUE & 0x3FFF) | 0x4000
 DIVH7 = (DIVC7 & 0xFF00) >> .8
 DIVL7 = DIVC7 & 0x00FF
-UNIT7 = 'u'
-
+UNIT7 = 0xE4
 
 FREQUENCY = .20000
 VALUE = .10736*FREQUENCY/.1000
@@ -525,7 +531,7 @@ MSB8 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB8 = (VALUE & 0x3FFF) | 0x4000
 DIVH8 = (DIVC8 & 0xFF00) >> .8
 DIVL8 = DIVC8 & 0x00FF
-UNIT8 = 'u'
+UNIT8 = 0xE4
 
 
 FREQUENCY = .50000
@@ -534,7 +540,7 @@ MSB9 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB9 = (VALUE & 0x3FFF) | 0x4000
 DIVH9 = (DIVC9 & 0xFF00) >> .8
 DIVL9 = DIVC9 & 0x00FF
-UNIT9 = 'u'
+UNIT9 = 0xE4
 
 FREQUENCY = .100000
 VALUE = .10736*FREQUENCY/.1000
@@ -542,7 +548,7 @@ MSB10 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB10 = (VALUE & 0x3FFF) | 0x4000
 DIVH10 = (DIVC10 & 0xFF00) >> .8
 DIVL10 = DIVC10 & 0x00FF
-UNIT10 = 'u'
+UNIT10 = 0xE4
 
 
 FREQUENCY = .200000
@@ -551,7 +557,7 @@ MSB11 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB11 = (VALUE & 0x3FFF) | 0x4000
 DIVH11 = (DIVC11 & 0xFF00) >> .8
 DIVL11 = DIVC11 & 0x00FF
-UNIT11 = 'u'
+UNIT11 = 0xE4
 
 
 ; *****************************************************************************
@@ -1034,6 +1040,10 @@ StartReg        BANKSEL     PORTFSYNC
 
 StopReg         BANKSEL     PORTFSYNC
                 bsf         PORTFSYNC,FSYNC
+                return
+
+showmeas
+                WRITELN     measuring
                 return
 
 ; *****************************************************************************
@@ -1562,7 +1572,7 @@ BLUM3216NA
 ; *****************************************************************************
 
 DefineChars
-                movlw       0x40
+                movlw       0x40            ; Symbol for the DC voltage
                 lcall       sendcommand
                 movlw       B'00011000'
                 lcall       senddata
@@ -1629,13 +1639,11 @@ InitDisplay
                 lcall       longdelay
                 lcall       init
                 lcall       longdelay
-
                 lcall       functionset
                 lcall       displayon
                 lcall       longdelay
                 lcall       functionset
                 lcall       displayon
-
                 lcall       longdelay
                 lcall       functionset
                 lcall       displayon
@@ -1643,7 +1651,6 @@ InitDisplay
                 lcall       displayon
 
                 lcall       DefineChars
-
                 lcall       displayclear
                 lcall       displaychome
                 return
@@ -1703,7 +1710,6 @@ state4          lgoto       Test
 
 ; Measure and show the battery voltage. Consider a voltage divider made by
 ; 47kohm + 22kohm resistances.
-
 MeasBattery     BANKSEL     ADCON0
                 bsf         ADCON0,2    ; Input in channel 1
                 lcall       longdelay
@@ -1911,6 +1917,8 @@ greater         MOV16FF     aHH,aHL,divid0,divid1
 ; Let the user choose the frequency with the knob, measure ESR and show it.
 ; Repeat :-)
 ManualMeasESR
+                movlw       ACTIVE
+                movwf       WRITEF
                 lcall       ReadAllADC
                 movfw       CHVAL       ; Update the frequency value if needed
                 addwf       FREQ,f
@@ -1931,12 +1939,12 @@ buttonzero      clrf        CHVAL
 
 
 
-; Try to measure automatically the capacitance and the ESR. Cycle the frequency
-; starting from the lowest value until a capacitance can be read.
+; Try to measure automatically the capacitance and the ESR. Change the frequency
+; until a capacitance can be read.
 AutomaticMeas   lcall       displayclear
                 lcall       display2line
-                clrf        FREQ
 AutomaticMeasL  clrf        CHVAL
+                clrf        WRITEF
                 movlw       NOESR
                 movwf       ESRM
                 lcall       SelectFreq
@@ -2074,7 +2082,8 @@ nocap1          xorlw       FREQLOW
                 btfss       STATUS,Z
                 goto        decrement
                 lcall       displayclear        ; If capacitance is not OK
-                lgoto        $+1
+                lcall       showmeas
+                lgoto       $+1
                 incf        FREQ,f              ; increment the frequency
                 movfw       FREQ
                 xorlw       .12                 ; until it gets past 11
@@ -2167,10 +2176,8 @@ movac           movf            aLL,w
                 movwf           REGCHH
                 return
 
-
 ;Clear REGB and REGA
 ;Used by sqrt
-
 clrba           clrf            REGBLL
                 clrf            REGBLH
                 clrf            REGBHL
@@ -2178,7 +2185,6 @@ clrba           clrf            REGBLL
 
 ;Clear REGA
 ;Used by multiply, sqrt
-
 clra            clrf            aLL
                 clrf            aLH
                 clrf            aHL
