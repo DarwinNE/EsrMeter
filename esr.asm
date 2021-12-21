@@ -202,14 +202,20 @@ CHVAL           equ     0x7F
 
                 ; Read a value from the ADC and store it in STH and STL.
 READV           MACRO       CTRL, STH,STL
-                BANKSEL     CTRLP
-                clrf        CTRLP
+                call        preparer
                 bsf         CTRLP,CTRL
                 call        syncosc
                 movfw       STOREH
                 movwf       STH
                 movfw       STOREL
                 movwf       STL                
+                ENDM
+
+WRITE2DIGITS    MACRO       BB
+                swapf       BB,w
+                call        Write4
+                movfw       BB
+                call        Write4
                 ENDM
 
                 ; Write a message on the LCD display
@@ -571,6 +577,13 @@ prg
                 movwf       MENUSTATE
                 lgoto       SelectState
 
+; Used in READV, prepare everything for setting the 
+preparer
+                call        syncosc1
+                BANKSEL     CTRLP
+                clrf        CTRLP
+                return
+
 checkc
                 btfsc       STATUS,C
                 addlw       1
@@ -715,6 +728,9 @@ err_reshi       call        display2line
 
 
 syncosc         call        activedelay
+                call        activedelay
+                call        activedelay
+syncosc1        BANKSEL     CTRLP
                 btfsc       CTRLP,VSYNC ; Synchronise with the oscillator, then
                 goto        $-1         ; read the adc
                 btfss       CTRLP,VSYNC
@@ -736,7 +752,6 @@ readadc
 ; *****************************************************************************
 ;               Ancillary routines
 ; *****************************************************************************
-
 
 WriteCap        WRITELN     text_cap
                 MOV16FF     bin+0, bin+1,CAPHH, CAPHL
@@ -1056,12 +1071,6 @@ Write4          andlw       0x0F
                 call        WriteNumber8
                 return
 
-WRITE2DIGITS    MACRO       BB
-                swapf       BB,w
-                call        Write4
-                movfw       BB
-                call        Write4
-                ENDM
 
 WriteNumber24
                 clrf        NOZ
