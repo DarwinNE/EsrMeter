@@ -331,6 +331,122 @@ exit
                 ENDM
 
 ; *****************************************************************************
+;               Constants for capacitance calculation
+; *****************************************************************************
+
+DIVC0  = .2108      ; Results in mF
+DIVC1  = .7906
+DIVC2  = .21083
+DIVC3  = .53        ; Results in uF (2% of error here)
+DIVC4  = .105       ; 1% of error here
+DIVC5  = .211
+DIVC6  = .527
+DIVC7  = .1054
+DIVC8  = .2108
+DIVC9  = .5271
+DIVC10 = .10541
+DIVC11 = .21083
+
+FREQUENCY = .20
+VALUE = .10736*FREQUENCY/.1000
+MSB0 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB0 = (VALUE & 0x3FFF) | 0x4000
+DIVH0 = (DIVC0 & 0xFF00) >> .8
+DIVL0 = DIVC0 & 0x00FF
+UNIT0 = 'm'
+
+FREQUENCY = .75
+VALUE = .10736*FREQUENCY/.1000
+MSB1 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB1 = (VALUE & 0x3FFF) | 0x4000
+DIVH1 = (DIVC1 & 0xFF00) >> .8
+DIVL1 = DIVC1 & 0x00FF
+UNIT1 = 'm'
+
+FREQUENCY = .200
+VALUE = .10736*FREQUENCY/.1000
+MSB2 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB2 = (VALUE & 0x3FFF) | 0x4000
+DIVH2 = (DIVC2 & 0xFF00) >> .8
+DIVL2 = DIVC2 & 0x00FF
+UNIT2 = 'm'
+
+FREQUENCY = .500
+VALUE = .10736*FREQUENCY/.1000
+MSB3 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB3 = (VALUE & 0x3FFF) | 0x4000
+DIVH3 = (DIVC3 & 0xFF00) >> .8
+DIVL3 = DIVC3 & 0x00FF
+UNIT3 = 'm'
+
+FREQUENCY = .1000
+VALUE = .10736*FREQUENCY/.1000
+MSB4 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB4 = (VALUE & 0x3FFF) | 0x4000
+DIVH4 = (DIVC4 & 0xFF00) >> .8
+DIVL4 = DIVC4 & 0x00FF
+UNIT4 = 0xE4            ; µ
+
+FREQUENCY = .2000
+VALUE = .10736*FREQUENCY/.1000
+MSB5 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB5 = (VALUE & 0x3FFF) | 0x4000
+DIVH5 = (DIVC5 & 0xFF00) >> .8
+DIVL5 = DIVC5 & 0x00FF
+UNIT5 = 0xE4            ; µ
+
+FREQUENCY = .5000
+VALUE = .10736*FREQUENCY/.1000
+MSB6 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB6 = (VALUE & 0x3FFF) | 0x4000
+DIVH6 = (DIVC6 & 0xFF00) >> .8
+DIVL6 = DIVC6 & 0x00FF
+UNIT6 = 0xE4            ; µ
+
+FREQUENCY = .10000
+VALUE = .10736*FREQUENCY/.1000
+MSB7 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB7 = (VALUE & 0x3FFF) | 0x4000
+DIVH7 = (DIVC7 & 0xFF00) >> .8
+DIVL7 = DIVC7 & 0x00FF
+UNIT7 = 0xE4            ; µ
+
+FREQUENCY = .20000
+VALUE = .10736*FREQUENCY/.1000
+MSB8 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB8 = (VALUE & 0x3FFF) | 0x4000
+DIVH8 = (DIVC8 & 0xFF00) >> .8
+DIVL8 = DIVC8 & 0x00FF
+UNIT8 = 0xE4            ; µ
+
+
+FREQUENCY = .50000
+VALUE = .10736*FREQUENCY/.1000
+MSB9 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB9 = (VALUE & 0x3FFF) | 0x4000
+DIVH9 = (DIVC9 & 0xFF00) >> .8
+DIVL9 = DIVC9 & 0x00FF
+UNIT9 = 0xE4            ; µ
+
+FREQUENCY = .100000
+VALUE = .10736*FREQUENCY/.1000
+MSB10 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB10 = (VALUE & 0x3FFF) | 0x4000
+DIVH10 = (DIVC10 & 0xFF00) >> .8
+DIVL10 = DIVC10 & 0x00FF
+UNIT10 = 0xE4           ; µ
+
+
+FREQUENCY = .200000
+VALUE = .10736*FREQUENCY/.1000
+MSB11 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
+LSB11 = (VALUE & 0x3FFF) | 0x4000
+DIVH11 = (DIVC11 & 0xFF00) >> .8
+DIVL11 = DIVC11 & 0x00FF
+UNIT11 = 0xE4           ; µ
+
+
+; *****************************************************************************
 ;               Interrupt vectors
 ; *****************************************************************************
                 org         0000
@@ -348,7 +464,7 @@ text_welcome    addwf   PCL,f
                 DT      "Welcome ESR  1.0",0
 text_davide     addwf   PCL,f
                 DT      "D. Bucci 2021",0
-text_lowosc     addwf   PCL,f
+text_short      addwf   PCL,f
                 DT      "DC short...",0
 text_hiosc      addwf   PCL,f
                 DT      "Osc. high.",0
@@ -400,7 +516,7 @@ DCVALUE_NO_DC   equ     .6
                 ; Values of the PWM for a 5V power supply
 dclist          addwf   PCL,f
                 retlw   .0      ; not used
-                retlw   .8     ; -2V
+                retlw   .8      ; -2V
                 retlw   .18     ; -1.5V
                 retlw   .29     ; -1V
                 retlw   .39     ; -0.5V
@@ -454,122 +570,10 @@ nosignal        addwf   PCL,f
 
 measuring       addwf   PCL,f
                 DT      "Measuring...",0
-DIVC0  = .2108
-DIVC1  = .7906
-DIVC2  = .21083
-DIVC3  = .53
-DIVC4  = .105
-DIVC5  = .211
-DIVC6  = .527
-DIVC7  = .1054
-DIVC8  = .2108
-DIVC9  = .5271
-DIVC10 = .10541
-DIVC11 = .21083
-
-FREQUENCY = .20
-VALUE = .10736*FREQUENCY/.1000
-MSB0 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB0 = (VALUE & 0x3FFF) | 0x4000
-DIVH0 = (DIVC0 & 0xFF00) >> .8
-DIVL0 = DIVC0 & 0x00FF
-UNIT0 = 'm'
-
-FREQUENCY = .75
-VALUE = .10736*FREQUENCY/.1000
-MSB1 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB1 = (VALUE & 0x3FFF) | 0x4000
-DIVH1 = (DIVC1 & 0xFF00) >> .8
-DIVL1 = DIVC1 & 0x00FF
-UNIT1 = 'm'
-
-FREQUENCY = .200
-VALUE = .10736*FREQUENCY/.1000
-MSB2 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB2 = (VALUE & 0x3FFF) | 0x4000
-DIVH2 = (DIVC2 & 0xFF00) >> .8
-DIVL2 = DIVC2 & 0x00FF
-UNIT2 = 'm'
-
-FREQUENCY = .500
-VALUE = .10736*FREQUENCY/.1000
-MSB3 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB3 = (VALUE & 0x3FFF) | 0x4000
-DIVH3 = (DIVC3 & 0xFF00) >> .8
-DIVL3 = DIVC3 & 0x00FF
-UNIT3 = 'm'
-
-FREQUENCY = .1000
-VALUE = .10736*FREQUENCY/.1000
-MSB4 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB4 = (VALUE & 0x3FFF) | 0x4000
-DIVH4 = (DIVC4 & 0xFF00) >> .8
-DIVL4 = DIVC4 & 0x00FF
-UNIT4 = 0xE4
-
-FREQUENCY = .2000
-VALUE = .10736*FREQUENCY/.1000
-MSB5 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB5 = (VALUE & 0x3FFF) | 0x4000
-DIVH5 = (DIVC5 & 0xFF00) >> .8
-DIVL5 = DIVC5 & 0x00FF
-UNIT5 = 0xE4
-
-FREQUENCY = .5000
-VALUE = .10736*FREQUENCY/.1000
-MSB6 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB6 = (VALUE & 0x3FFF) | 0x4000
-DIVH6 = (DIVC6 & 0xFF00) >> .8
-DIVL6 = DIVC6 & 0x00FF
-UNIT6 = 0xE4
-
-FREQUENCY = .10000
-VALUE = .10736*FREQUENCY/.1000
-MSB7 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB7 = (VALUE & 0x3FFF) | 0x4000
-DIVH7 = (DIVC7 & 0xFF00) >> .8
-DIVL7 = DIVC7 & 0x00FF
-UNIT7 = 0xE4
-
-FREQUENCY = .20000
-VALUE = .10736*FREQUENCY/.1000
-MSB8 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB8 = (VALUE & 0x3FFF) | 0x4000
-DIVH8 = (DIVC8 & 0xFF00) >> .8
-DIVL8 = DIVC8 & 0x00FF
-UNIT8 = 0xE4
-
-
-FREQUENCY = .50000
-VALUE = .10736*FREQUENCY/.1000
-MSB9 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB9 = (VALUE & 0x3FFF) | 0x4000
-DIVH9 = (DIVC9 & 0xFF00) >> .8
-DIVL9 = DIVC9 & 0x00FF
-UNIT9 = 0xE4
-
-FREQUENCY = .100000
-VALUE = .10736*FREQUENCY/.1000
-MSB10 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB10 = (VALUE & 0x3FFF) | 0x4000
-DIVH10 = (DIVC10 & 0xFF00) >> .8
-DIVL10 = DIVC10 & 0x00FF
-UNIT10 = 0xE4
-
-
-FREQUENCY = .200000
-VALUE = .10736*FREQUENCY/.1000
-MSB11 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
-LSB11 = (VALUE & 0x3FFF) | 0x4000
-DIVH11 = (DIVC11 & 0xFF00) >> .8
-DIVL11 = DIVC11 & 0x00FF
-UNIT11 = 0xE4
-
 
 ; *****************************************************************************
 ;               Main Program
 ; *****************************************************************************
-
 prg
                 lcall       InitAll
                 lcall       SetPWM
@@ -577,13 +581,13 @@ prg
                 movwf       MENUSTATE
                 lgoto       SelectState
 
-; Used in READV, prepare everything for setting the 
+; Used in READV, prepare everything for setting the delay.
 preparer
                 call        syncosc1
-                BANKSEL     CTRLP
                 clrf        CTRLP
                 return
 
+; Used in WRITELN, check if the address should be corrected for a page increase.
 checkc
                 btfsc       STATUS,C
                 addlw       1
@@ -591,6 +595,7 @@ checkc
                 movf        CNT,w
                 return
 
+; Show the program name and a copyright line.
 Greetings       lgoto       $+1
                 WRITELN     text_welcome    ; Greetings and program version.
                 call        display2line    ; Move to the second line
@@ -604,7 +609,7 @@ CalcESR         movfw       DCVAL
                 goto        checkamplitudes ; If no DC is present, continue
                 movlw       0x0E        ; Put cursor in the top right corner
                 call        displayaddrset
-                call        writedc     ; Write the symbol +/-DC
+                call        WriteDC     ; Write the symbol +/-DC
 checkamplitudes movfw       A_VH        ; Check if oscillator amplitude is OK.
                 sublw       OSC_LOTHRESHOLD
                 btfsc       STATUS,C
@@ -653,14 +658,14 @@ outputESR       lcall       display2line
                 call        sendspace
                 return
 
-; *****************************************************************************
-
-ReadAllADC      READV       CTRLA, A_VH, A_VL   ; Read A, B and C
+; Read all the three values A, B and C and store the results appropriately.
+ReadAllADC      READV       CTRLA, A_VH, A_VL
                 READV       CTRLB, B_VH, B_VL
                 READV       CTRLC, C_VH, C_VL
                 return
 
-writedc         movfw       DCVAL
+; Write the +/- DC symbol (if applicable)
+WriteDC         movfw       DCVAL               ; Check the DC value
                 sublw       DCVALUE_NO_DC
                 btfsc       STATUS,C
                 goto        dcneg
@@ -675,6 +680,7 @@ dcneg           movlw       '-'                 ; Write '-DC' if appropriate
                 call        senddata
                 return
 
+; Set the WMM so to obtain the wanted DC value.
 SetPWM          movfw       DCVAL
                 xorlw       DCVALUE_NO_DC       ; Value that corresponds to DC
                 btfsc       STATUS,Z
@@ -693,40 +699,47 @@ SetPWM          movfw       DCVAL
                 movwf       CCPR1L
                 BANKSEL     T2CON
                 bsf         T2CON, TMR2ON
-                goto        display2line        ; Strange: if I remove this,
-                ;return                         ; the program does not work!
+                goto        display2line
 
+; Deactivate the DC output.
 SetNoDC         BANKSEL     TRISCTRL
                 bsf         TRISCTRL, PWMPIN    ; Port PWM as input
                 return                          ; That makes sort that DC=0
 
-
+; Show an error if the oscillator level is too low.
 err_lowosc      call        displayclear
                 movfw       DCVAL               ; If a DC bias is present,
                 xorlw       DCVALUE_NO_DC       ; then 99% of the times we have
                 btfsc       STATUS,Z            ; a short circuit.
                 goto        nosig
-                WRITELN     text_lowosc
+                WRITELN     text_short
                 call        activedelay
                 return
 
+; If the measurement is not possible, show "----".
 err_lowcurr
-nosig           call        display2line
+nosig           call        display2line 
                 WRITELN     nosignal
                 call        activedelay
                 return
 
+; If the amplitude of the oscillator is too large, write an error.
 err_hiosc       call        display2line
                 WRITELN     text_hiosc
                 call        activedelay
                 return
 
+; Write that the resistance is too large.  ------- CURRENTLY NOT USED ---------
 err_reshi       call        display2line
                 WRITELN     text_reshi
                 call        activedelay
                 return
 
-
+; Introduce a delay and synchronise the code to the oscillator. This ensures
+; that the sampling operation is done at the same moment of the signal, thus
+; improving the stability of the result at low frequency. Then perform a read
+; of the ADC. A total of 64 reads is done and the result is the sum of all of
+; those. Each read is 10 bits, so that the result fills up 16 bits.
 syncosc         call        activedelay
                 call        activedelay
                 call        activedelay
@@ -749,41 +762,40 @@ readadc
                 goto @llo
                 return
 
-; *****************************************************************************
-;               Ancillary routines
-; *****************************************************************************
-
+; Write the value of the capacitance on the screen.
 WriteCap        WRITELN     text_cap
                 MOV16FF     bin+0, bin+1,CAPHH, CAPHL
                 MOV16FF     bin+2, bin+3,CAPLH, CAPLL
                 call        WriteNumber24
                 call        sendspace
                 movfw       UNIT
-                call        sendchar   ; Write the farad symbol
+                call        sendchar    ; Write the farad symbol
                 movlw       'F'
-                call        sendchar   ; Write the farad symbol
-                call        sendspace
-                call        sendspace
-                call        sendspace
+                call        sendchar    ; Write the farad symbol
+                call        sendspace   ; Erase some characters that may be
+                call        sendspace   ; still present if successive reads
+                call        sendspace   ; are performed.
                 call        sendspace
                 call        sendspace
                 return
 
-ss              lgoto       SelectState
+; *****************************************************************************
+; Main menu loop
+; *****************************************************************************
 
-; Menu loop
 Menu            lcall       displayclear
 ChooseMenu      lcall       clear1stline    ; Move to the second line
-                call        selectmenu
+                call        SelectMenu
                 call        activedelay
                 btfsc       PORTA,RA7
-                goto        ss              ; Exit from this loop
+                goto        ExitMenu              ; Exit from this loop
                 movfw       CHVAL           ; Update the DC value if needed
                 addwf       MENUSTATE,f
                 clrf        CHVAL
                 goto        ChooseMenu
 
-selectmenu      movlw       .5
+; Determine which menu has to be shown.
+SelectMenu      movlw       .5
                 subwf       MENUSTATE,w
                 btfsc       STATUS,C
                 goto        smenu1
@@ -804,6 +816,10 @@ smenu4          movlw       .4
                 WRITELN     testmode
                 return
 
+; This is needed as lgoto is a macro
+ExitMenu              lgoto       SelectState
+
+
 smenu1          movlw       0x1             ; We need to be sure that negative
                 movwf       MENUSTATE       ; values are transformed into 1
                 WRITELN     automatic
@@ -815,6 +831,9 @@ smenu2          WRITELN     manual
 smenu3          WRITELN     tsetdc
                 return
 
+; *****************************************************************************
+
+; Write the text associated to the measurement of the battery.
 WriteBattery    lgoto       $+1
                 WRITELN     text_battery
                 return
@@ -1345,6 +1364,8 @@ portnibble
 ; *****************************************************************************
 ; -----------------------------------------------------------------------------
 ; Second 2 k word page
+; -----------------------------------------------------------------------------
+; NOTE: Macros such as WRITELN can NOT be used directly from this code.
 ; -----------------------------------------------------------------------------
 
                 org         0x800
