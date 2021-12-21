@@ -83,7 +83,7 @@ UNT             equ     0x2D
 ; Used to send 16 bit data via SPI, combined with the w register.
 SENDL           equ     0x2E
 
-; Used for the div_32_16 operator: the two operands, the result and the 
+; Used for the div_32_16 operator: the two operands, the result and the
 ; remainder
 divid0          equ     0x30      ; Most significant byte
 divid1          equ     0x31
@@ -208,7 +208,7 @@ READV           MACRO       CTRL, STH,STL
                 movfw       STOREH
                 movwf       STH
                 movfw       STOREL
-                movwf       STL                
+                movwf       STL
                 ENDM
 
 WRITE2DIGITS    MACRO       BB
@@ -718,7 +718,7 @@ err_lowosc      call        displayclear
 
 ; If the measurement is not possible, show "----".
 err_lowcurr
-nosig           call        display2line 
+nosig           call        display2line
                 WRITELN     nosignal
                 call        activedelay
                 return
@@ -1601,6 +1601,7 @@ BLUM3216NA
 
 ; *****************************************************************************
 
+; Define a special character for the DC symbol.
 DefineChars
                 movlw       0x40            ; Symbol for the DC voltage
                 lcall       sendcommand
@@ -1622,6 +1623,7 @@ DefineChars
                 lcall       senddata
                 return
 
+; Perform all the initialization functions when the system is switched on.
 InitAll         BANKSEL     ANSEL
                 clrf        ANSEL
                 BANKSEL     ANSELH
@@ -1632,7 +1634,6 @@ InitAll         BANKSEL     ANSEL
                 clrf        TRISB
                 BANKSEL     WDTCON
                 bcf         WDTCON,SWDTEN
-
                 BANKSEL     TRISCTRL
                 clrf        TRISLCD         ; Display ports as outputs
                 bcf         TRISCTRL,CTRLA
@@ -1643,14 +1644,11 @@ InitAll         BANKSEL     ANSEL
                 BANKSEL     PORTA
                 lcall       InitDisplay
                 lcall       Greetings
-
                 clrf        FREQ            ; Standard values for frequency
                 movlw       0x4
                 movwf       CHVAL           ; Force setting of AD9833
-
                 movlw       DCVALUE_NO_DC   ; Standard value for DC (no DC)
                 movwf       DCVAL
-
                 lcall       longdelay
                 lcall       longdelay
                 lcall       longdelay
@@ -1662,6 +1660,7 @@ InitAll         BANKSEL     ANSEL
                 lcall       longdelay
                 return
 
+; Initialize the display when the circuit is switched on.
 InitDisplay
                 lcall       init            ; Call three times the init
                 lcall       longdelay
@@ -1679,38 +1678,38 @@ InitDisplay
                 lcall       displayon
                 lcall       displayon
                 lcall       displayon
-
                 lcall       DefineChars
                 lcall       displayclear
                 lcall       displaychome
                 return
 
+; Configure the AD9833 to provide a given frequency and a sinusoidal signal.
 ConfigureAD9833
-                lcall        StartReg
+                lcall       StartReg
                 movlw       0x21            ; Control word write, reset
-                lcall        WriteSPI
+                lcall       WriteSPI
                 movlw       0x00
-                lcall        WriteSPI       ; FREQ0 register write, 14 LSB
+                lcall       WriteSPI        ; FREQ0 register write, 14 LSB
                 movfw       LSBH
-                lcall        WriteSPI
+                lcall       WriteSPI
                 movfw       LSBL
-                lcall        WriteSPI       ; FREQ0 register write, 14 MSB
+                lcall       WriteSPI        ; FREQ0 register write, 14 MSB
                 movfw       MSBH
-                lcall        WriteSPI
+                lcall       WriteSPI
                 movfw       MSBL
-                lcall        WriteSPI
+                lcall       WriteSPI
                 movlw       0xC0            ; PHASE0 register write
                 lcall       WriteSPI
                 movlw       0x00
                 lcall       WriteSPI
                 movlw       0x20            ; 0x2000 sine, 0x2028 square
                 lcall       WriteSPI        ; 0x2002 triangle
-                movlw       0x00
+                movlw       0x00            ; We want a sine wave.
                 lcall       WriteSPI
                 lcall       StopReg
                 return
 
-                ; Main state machine dispatcher
+; Main state machine dispatcher
 SelectState     lgoto       $+1
                 movlw       .0
                 xorwf       MENUSTATE,w
@@ -1733,10 +1732,10 @@ SelectState     lgoto       $+1
                 btfsc       STATUS,Z
                 goto        state4
 
-state1          lgoto       AutomaticMeas
+state1          lgoto       AutomaticCapM
 state2          lgoto       ManualMeasESR
 state3          lgoto       ChooseDc
-state4          lgoto       Test
+state4          lgoto       Diagnostic
 
 ; Measure and show the battery voltage. Consider a voltage divider made by
 ; 47kohm + 22kohm resistances.
@@ -1766,11 +1765,9 @@ MeasBattery     BANKSEL     ADCON0
                 lcall       longdelay
                 return
 
-; This is a test mode end of loop. Shows on the display the value of A, B and C
+; This is a diagnostic mode end of loop. Shows the values of A, B and C
 ; (writing separately the high byte and the low byte for each).
-
-Test
-                movlw       ACTIVE
+Diagnostic      movlw       ACTIVE
                 movwf       WRITEF
 testloop        clrf        CHVAL
                 lcall       ReadAllADC
@@ -1782,14 +1779,13 @@ testloop        clrf        CHVAL
                 goto        changeFreq
                 lcall       writeABC
                 btfss       PORTA,RA7   ; Check if the button is depressed.
-                goto        Menu        ; If yes, go to the menu.                
+                goto        Menu        ; If yes, go to the menu.
                 lgoto       testloop
 
 changeFreq      clrf        CHVAL       ; Change the test frequency.
                 lcall       displayclear
                 lcall       SelectFreq
                 lgoto       testloop
-
 
 writeABC        lcall       displayclear
                 movlw       'A'
@@ -1821,7 +1817,8 @@ writeABC        lcall       displayclear
                 lcall       sendspace
                 return
 
-ConfigureADC   ; Configure the ADC, read on A0.
+; Configure the ADC, read on A0.
+ConfigureADC
                 BANKSEL     TRISA
                 bsf         TRISA,0
                 bsf         TRISA,2
@@ -1844,6 +1841,7 @@ ConfigureADC   ; Configure the ADC, read on A0.
                 bcf         ADCON0,2
                 return
 
+; Write on the SPI bus
 WriteSPI        BANKSEL     SSPBUF
                 movwf       SSPBUF
                 BANKSEL     SSPSTAT
@@ -1852,7 +1850,8 @@ WriteSPI        BANKSEL     SSPBUF
                 movfw       SSPBUF
                 return
 
-ConfigureSPI    ; Configure SPI communication with AD9833
+; Configure SPI communication with AD9833
+ConfigureSPI
                 BANKSEL     TRISC
                 bcf         TRISC,RC3
                 bcf         TRISC,RC5
@@ -1873,56 +1872,60 @@ ConfigureSPI    ; Configure SPI communication with AD9833
 
 ; Calculate the capacitance from the data contained in A, B and C and the
 ; frequency (constants contained in DIVH and DIVL).
+; This is the formula to be calculated.
+; Cap = sqrt((A-C)/(B-C)-1)/(2*pi*f*R)
+; the constant (2*pi*f*R) is pre-calculated for each frequency and stored at
+; DIVH:DIVL
 ; w at return contains an error code:
-; 0x0 - all OK, the capacitance value is stored in CAP0, CAP1, CAP2, CAP3
-; FREQLOW (0x1) - test current too low (usually frequency too low)
-; FREQHI  (0x2) - the ESR affects measurement (usually frequency too high)
-
+; 0x0 - all OK, the capacitance value is stored in CAP0, CAP1, CAP2, CAP3.
+; FREQLOW (0x1) - test current too low (usually frequency too low).
+; FREQHI  (0x2) - frequency too high (ESR affects measurement too much).
 CalcCapacitance
                 MOV16FF     divisH, divisL, A_VH, A_VL  ; Transfer A in divis
                 SUB16BIT    divisH, divisL, B_VH, B_VL  ; divis -= B
+                ; Here divis contains (A-B), to perform some routine checks.
+                ; This term is proportional to the current used for the test.
                 movfw       divisH          ; Check if test current is OK.
                 sublw       CURR_THRESHOLD  ; (A-B) should be greater than a
-                btfsc       STATUS,C        ; certain threshold for the ESR
-                retlw       FREQLOW         ; to be meaningful
-                btfsc       divisH,7        ; In some cases (A-B) is <0!!!
-                retlw       FREQLOW
+                btfsc       STATUS,C        ; certain threshold for the cap.
+                retlw       FREQLOW         ; to be meaningful.
+                btfsc       divisH,7        ; In some cases (A-B) is even <0
+                retlw       FREQLOW         ; Frequency too low, in this case!
                 movfw       divisH          ; Check if test current is OK.
-                sublw       80  ; (A-B) should be greater than a
-                btfss       STATUS,C        ; certain threshold for the ESR
-                retlw       FREQHI        ; to be meaningful
-
-                ; C^2 = sqrt((A-C)/(B-C)-1)/(2*pi*f*R)
+                sublw       80              ; (A-B) should be greater than a
+                btfss       STATUS,C        ; certain threshold for the cap.
+                retlw       FREQHI          ; to be meaningful
+                ; If everything is OK, we can start the real calculation.
                 MOV16FF     divid0, divid1, A_VH, A_VL  ; A-> 16 MSB divid
-                clrf        divid2      ; Put 0 to divid2, divid3
+                clrf        divid2          ; Put 0 to divid2, divid3
                 clrf        divid3
                 SUB16BIT    divid0, divid1, C_VH, C_VL  ; divid -= C
+                ; Now the 16 MSB's of divid contain (A-C), with 16 LSB's at 0.
                 MOV16FF     divisH, divisL, B_VH, B_VL  ; Transfer B in divis
                 SUB16BIT    divisH, divisL, C_VH, C_VL  ; divis -= C
+                ; Now divis contains (B-C)
                 lcall       div_32_16      ; Divide! Result in divid0,1,2,3
-
                 ; Here divid0 and divid1 contain the integer part and
                 ; divid2 and divid3 contain the fraction part. In other
-                ; words, 65536 on divid0:3 represents 1.0, 32768 represents 
+                ; words, 65536 on divid0:3 represents 1.0, 32768 represents
                 ; 0.5 and so on.
-
-greater         MOV16FF     aHH,aHL,divid0,divid1
+                MOV16FF     aHH,aHL,divid0,divid1
                 MOV16FF     aLH,aLL,divid2,divid3
-                movlw       0x1         ; Put 1 in b
+                movlw       0x1             ; Put 1 in b
                 movwf       bL
                 clrf        bH
-                SUB16BIT    aHH, aHL, bH, bL  ; a -= 1
-
+                SUB16BIT    aHH, aHL, bH, bL; a -= 1
+                ; Now aHH, aHL, aLH and aLL contain (A-C)/(B-C)-1
                 movlw       high .256        ; Hi-byte of 256
                 movwf       bH
                 movlw       low .256         ; Lo-byte of 256
                 movwf       bL
-                lcall       mult_32_16
-                lcall       sqrt    ; Calculate the square root
+                lcall       mult_32_16      ; We multiply times 256, to scale.
+                lcall       sqrt            ; Calculate the square root
                 ; Result is in aHH, aHL, aLH, aLL
-                movlw       high 0x1000     ; Hi-byte of 4096
+                movlw       high .4096      ; Hi-byte of 4096
                 movwf       bH
-                movlw       low  0x1000     ; Lo-byte of 4096
+                movlw       low  .4096      ; Lo-byte of 4096
                 movwf       bL
                 lcall       mult_32_16
                 MOV16FF     divid0,divid1,aHH,aHL
@@ -1932,7 +1935,6 @@ greater         MOV16FF     aHH,aHL,divid0,divid1
                 movfw       DIVL
                 movwf       divisL
                 lcall       div_32_16
-
                 ; Multiply times 1000 to show the result in uF
                 MOV16FF     aHH, aHL, divid0, divid1
                 MOV16FF     aLH, aLL, divid2, divid3
@@ -1943,37 +1945,34 @@ greater         MOV16FF     aHH,aHL,divid0,divid1
                 lcall       mult_32_16
                 MOV16FF     CAPHH, CAPHL, aHH, aHL
                 MOV16FF     CAPLH, CAPLL, aLH, aLL
-                retlw       0x0         ; Everything was OK.
+                retlw       0x0         ; Everything is OK.
 
 ; Manual measurement of ESR at a chosen frequency.
 ; Let the user choose the frequency with the knob, measure ESR and show it.
 ; Repeat :-)
-ManualMeasESR
-                movlw       ACTIVE
-                movwf       WRITEF
-                lcall       ReadAllADC
+ManualMeasESR   clrf        CHVAL       ; This contains the user action
+                movlw       ACTIVE      ; Ensure that the frequency is written
+                movwf       WRITEF      ; when it is changed.
+                lcall       ReadAllADC  ; Read all the ADC data
+                ; One has to check CHVAL here as the user may have changed the
+                ; frequency.
                 movfw       CHVAL       ; Update the frequency value if needed
                 addwf       FREQ,f
                 call        displayclear
-                call        SelectFreq
+                call        SelectFreq  ; Write the frequency value
                 btfss       PORTA,RA7   ; Check if the button is depressed.
-                goto        Menu        ; If yes, go to the menu.
-                lgoto       $+1
-                movfw       CHVAL
+                goto        Menu        ; If yes, go to the menu (exit).
+                lgoto       $+1         ; This is needed as we are in page 2.
+                movfw       CHVAL       ; Check if something has changed.
                 btfss       STATUS,Z
-                goto        buttonzero  ; If the frequency has changed, do not
+                goto        ManualMeasESR  ; If the frequency has changed, do not
                                         ; show the incomplete measurement.
-                lcall       CalcESR
-                lgoto       ManualMeasESR
-
-buttonzero      clrf        CHVAL
-                goto        ManualMeasESR
-
-
+                lcall       CalcESR     ; Calculate the ESR and show it.
+                lgoto       ManualMeasESR   ; loop !
 
 ; Try to measure automatically the capacitance and the ESR. Change the frequency
 ; until a capacitance can be read.
-AutomaticMeas   lcall       displayclear
+AutomaticCapM   lcall       displayclear
                 lcall       display2line
 AutomaticMeasL  clrf        CHVAL
                 clrf        WRITEF
