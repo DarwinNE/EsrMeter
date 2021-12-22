@@ -70,22 +70,32 @@ ESRM            equ     0x26        ; Flag: measure ESR or not.
 MEASUREESR      equ     0x00        ; Constants for ESRM
 NOESR           equ     0x01
 
-WRITEF          equ     0x27        ; Write the frequency when calling setFreq
+WRITEF          equ     0x27        ; Write the frequency when calling SetFreq
+
 ACTIVE          equ     0x01
 NOACTIVE        equ     0x00
+
+MEAS_OK         equ     0x00
+ERR_OSCLO       equ     0x01
+ERR_OSCHI       equ     0x02
+ERR_LOWCURR     equ     0x03
+
+CURW            equ     0x28        ; Used in the automatic measurement of C.
+OLDW            equ     0x29        ; Same as before.
 
 TMP_1           equ     0x2A
 HND             equ     0x2B
 DEC             equ     0x2C
 UNT             equ     0x2D
 
-
 ; Used to send 16 bit data via SPI, combined with the w register.
 SENDL           equ     0x2E
 
+SHOWNC          equ     0x2F            ; Different from zero if a C is shown
+
 ; Used for the div_32_16 operator: the two operands, the result and the
 ; remainder
-divid0          equ     0x30      ; Most significant byte
+divid0          equ     0x30            ; Most significant byte
 divid1          equ     0x31
 divid2          equ     0x32
 divid3          equ     0x33      ; Least significant byte
@@ -128,9 +138,10 @@ ii              equ     0x56
 bin             equ     0x57
 ; memory used up to bin+3 included
 
-; Error constants for the CalcCapacitance routine
-FREQLOW         equ     0x01
+; Error constants for the CalcCap routine
+FREQLO          equ     0x01
 FREQHI          equ     0x02
+CAP_OK          equ     0x00
 
 CAPHH           equ     0x5B    ; The current value of the capacity.
 CAPHL           equ     0x5C
@@ -188,6 +199,7 @@ LSBL            equ     0x7B
 
 ; The index in the frequency table
 FREQ            equ     0x7C
+FMAX            equ     .11     ; FREQ can range from 0 to FMAX (both included)
 
 ; The index in the DC value
 DCVAL           equ     0x7D
@@ -199,7 +211,6 @@ CHVAL           equ     0x7F
 ; *****************************************************************************
 ;               MACROS
 ; *****************************************************************************
-
                 ; Read a value from the ADC and store it in STH and STL.
 READV           MACRO       CTRL, STH,STL
                 call        preparer
@@ -532,44 +543,43 @@ dcmenu          addwf   PCL,f
                 DT      "Choose DC bias",0
 
 dcval1          addwf   PCL,f
-                DT      "DC = -2 V     ",0
+                DT      "DC = -2 V",0
 
 dcval2          addwf   PCL,f
-                DT      "DC = -1.5 V   ",0
+                DT      "DC = -1.5 V",0
 
 dcval3          addwf   PCL,f
-                DT      "DC = -1 V     ",0
+                DT      "DC = -1 V",0
 
 dcval4          addwf   PCL,f
-                DT      "DC = -0.5 V   ",0
+                DT      "DC = -0.5 V",0
 
 dcval5          addwf   PCL,f
-                DT      "DC = -0.3 V   ",0
+                DT      "DC = -0.3 V",0
 
 dcval6          addwf   PCL,f
                 DT      "DC = 0 V (off)",0
 
 dcval7          addwf   PCL,f
-                DT      "DC = 0.3 V    ",0
+                DT      "DC = 0.3 V",0
 
 dcval8          addwf   PCL,f
-                DT      "DC = 0.5 V    ",0
+                DT      "DC = 0.5 V",0
 
 dcval9          addwf   PCL,f
-                DT      "DC = 1 V      ",0
+                DT      "DC = 1 V",0
 
 dcval10          addwf   PCL,f
-                DT      "DC = 1.5 V    ",0
+                DT      "DC = 1.5 V",0
 
 dcval11         addwf   PCL,f
-                DT      "DC = 2 V      ",0
+                DT      "DC = 2 V",0
 
-                org     0x200    ; This fills more or less one page
 nosignal        addwf   PCL,f
                 DT      "      ----",0
 
 measuring       addwf   PCL,f
-                DT      "Measuring...",0
+                DT      "Measuring!",0
 
 ; *****************************************************************************
 ;               Main Program
@@ -606,20 +616,11 @@ Greetings       lgoto       $+1
 CalcESR         movfw       DCVAL
                 xorlw       DCVALUE_NO_DC   ; Check if a DC is present
                 btfsc       STATUS,Z
-                goto        checkamplitudes ; If no DC is present, continue
+                goto        directcalc  ; If no DC is present, continue
                 movlw       0x0E        ; Put cursor in the top right corner
                 call        displayaddrset
                 call        WriteDC     ; Write the symbol +/-DC
-checkamplitudes movfw       A_VH        ; Check if oscillator amplitude is OK.
-                sublw       OSC_LOTHRESHOLD
-                btfsc       STATUS,C
-                goto        err_lowosc
-                movfw       A_VH
-                sublw       OSC_HITHRESHOLD
-                btfss       STATUS,C
-                goto        err_hiosc
-
-                ; ESR=(B-C)/(A-B)*10
+directcalc      ; ESR=(B-C)/(A-B)*10
                 ; Transfer B in the high 16 bits of divid
                 MOV16FF     divid0, divid1, B_VH, B_VL
                 clrf        divid2      ; Put 0 to divid2, divid3
@@ -627,13 +628,6 @@ checkamplitudes movfw       A_VH        ; Check if oscillator amplitude is OK.
                 SUB16BIT    divid0, divid1, C_VH, C_VL  ; divid -= C
                 MOV16FF     divisH, divisL, A_VH, A_VL  ; Transfer A in divis
                 SUB16BIT    divisH, divisL, B_VH, B_VL  ; divis -= B
-
-                btfss       STATUS,C        ; In some cases (A-B) is <0!!!
-                goto        err_lowcurr
-checkcurrent    movfw       divisH          ; Check if test current is OK.
-                sublw       CURR_THRESHOLD  ; (A-B) should be greater than a
-                btfsc       STATUS,C        ; certain threshold for the ESR
-                goto        err_lowcurr     ; to be meaningful
                 lcall       div_32_16       ; Divide! Result in divid0,1,2,3.
                 MOV16FF     aHH,aHL,divid0,divid1 ; Multiply times 1525
                 MOV16FF     aLH,aLL,divid2,divid3
@@ -651,18 +645,45 @@ outputESR       lcall       display2line
                 call        sendspace
                 movlw       0xF4
                 call        sendchar    ; Write the ohm symbol
-                call        sendspace
-                call        sendspace
-                call        sendspace
-                call        sendspace
-                call        sendspace
+                call        sendlinespaces
+                return
+
+ReadA           READV       CTRLA, A_VH, A_VL
+                return
+ReadB           READV       CTRLB, B_VH, B_VL
+                return
+ReadC           READV       CTRLC, C_VH, C_VL
                 return
 
 ; Read all the three values A, B and C and store the results appropriately.
-ReadAllADC      READV       CTRLA, A_VH, A_VL
-                READV       CTRLB, B_VH, B_VL
-                READV       CTRLC, C_VH, C_VL
-                return
+; Calculate (A-B) and leave the result in divisH:divisL
+ReadAllADC      call        ReadA
+checkamplitudes movfw       A_VH        ; Check if oscillator amplitude is OK.
+                sublw       OSC_LOTHRESHOLD
+                btfsc       STATUS,C
+                retlw       ERR_OSCLO
+                movfw       A_VH
+                sublw       OSC_HITHRESHOLD
+                btfss       STATUS,C
+                retlw       ERR_OSCHI
+                call        ReadB
+                ; Calculate (A-B) and leave the result in divisH:divisL
+                ; Transfer B in the high 16 bits of divid
+                MOV16FF     divid0, divid1, B_VH, B_VL
+                clrf        divid2      ; Put 0 to divid2, divid3
+                clrf        divid3
+                SUB16BIT    divid0, divid1, C_VH, C_VL  ; divid -= C
+                MOV16FF     divisH, divisL, A_VH, A_VL  ; Transfer A in divis
+                SUB16BIT    divisH, divisL, B_VH, B_VL  ; divis -= B
+
+                btfss       STATUS,C        ; In some cases (A-B) is <0!!!
+                retlw       ERR_LOWCURR
+checkcurrent    movfw       divisH          ; Check if test current is OK.
+                sublw       CURR_THRESHOLD  ; (A-B) should be greater than a
+                btfsc       STATUS,C        ; certain threshold for the ESR
+                retlw       ERR_LOWCURR     ; to be meaningful
+                call        ReadC
+                retlw       MEAS_OK
 
 ; Write the +/- DC symbol (if applicable)
 WriteDC         movfw       DCVAL               ; Check the DC value
@@ -681,7 +702,8 @@ dcneg           movlw       '-'                 ; Write '-DC' if appropriate
                 return
 
 ; Set the WMM so to obtain the wanted DC value.
-SetPWM          movfw       DCVAL
+SetPWM          call        sendlinespaces
+                movfw       DCVAL
                 xorlw       DCVALUE_NO_DC       ; Value that corresponds to DC
                 btfsc       STATUS,Z
                 goto        SetNoDC
@@ -741,8 +763,6 @@ err_reshi       call        display2line
 ; of the ADC. A total of 64 reads is done and the result is the sum of all of
 ; those. Each read is 10 bits, so that the result fills up 16 bits.
 syncosc         call        activedelay
-                call        activedelay
-                call        activedelay
 syncosc1        BANKSEL     CTRLP
                 btfsc       CTRLP,VSYNC ; Synchronise with the oscillator, then
                 goto        $-1         ; read the adc
@@ -772,11 +792,10 @@ WriteCap        WRITELN     text_cap
                 call        sendchar    ; Write the farad symbol
                 movlw       'F'
                 call        sendchar    ; Write the farad symbol
-                call        sendspace   ; Erase some characters that may be
-                call        sendspace   ; still present if successive reads
-                call        sendspace   ; are performed.
-                call        sendspace
-                call        sendspace
+                ; Erase some characters that may be
+                ; still present if successive reads
+                ; are performed.
+                call        sendlinespaces
                 return
 
 ; *****************************************************************************
@@ -951,7 +970,7 @@ sdc11           movlw       .11             ; We need to be sure that >11 ->11
                 WRITELN     dcval11
                 goto        SetPWM
 
-SelectFreq      movlw       .0
+SetFreq      movlw       .0
                 xorwf       FREQ,w
                 btfsc       STATUS,Z
                 goto        sfreq0
@@ -1012,12 +1031,12 @@ SelectFreq      movlw       .0
                 goto        @set0
                 movlw       .11
                 movwf       FREQ
-                goto        SelectFreq
+                goto        SetFreq
 
 @set0
                 movlw       0               ; If we get here, FREQ contains an
                 movwf       FREQ            ; invalid data. Put 0.
-                goto        SelectFreq
+                goto        SetFreq
 
 sfreq0:
                 PROGFREQ    LSB0,MSB0,freq0,DIVH0,DIVL0,UNIT0
@@ -1158,26 +1177,22 @@ skip_DEC        movfw       UNT             ; Send the units (always written)
                 addlw       '0'             ; Transform it in ASCII
                 goto        senddata
 
-                ; Init the display (8 bit mode)
-init
-                movlw       0x30
+; Init the display (8 bit mode)
+init            movlw       0x30
                 lgoto       sendcommand
 
-functionset
-                movlw       0x02        ; Will be interpreted as nibble mode
+functionset     movlw       0x02        ; Will be interpreted as nibble mode
                                         ; the first nibble will be ignored
                                         ; the second one will be interpreted
                                         ; as 0x20 if the LCD has just been
                                         ; switched on.
                 lcall       sendcommand
-functionset2
-                movlw       0x28            ; Two lines display setup
+functionset2    movlw       0x28            ; Two lines display setup
                 goto        sendcommand
 
                 ; Send the command in w to the display LCD configured in the
                 ; nibble mode
-sendbyte
-                BANKSEL     DATALCD
+sendbyte        BANKSEL     DATALCD
                 movwf       TMP             ; Store command temporarily in TMP
                 call        portnibble
                 call        pulse_e         ; Send the first half of the command
@@ -1301,7 +1316,6 @@ shortdelay
 
 busywait
                 BANKSEL     TRISLCD
-                ;movlw      0xF0        ; Set all the port (4 bits) as inputs
                 clrf        TMP
                 bsf         TRISLCD, DATA4
                 bsf         TRISLCD, DATA5
@@ -1770,7 +1784,9 @@ MeasBattery     BANKSEL     ADCON0
 Diagnostic      movlw       ACTIVE
                 movwf       WRITEF
 testloop        clrf        CHVAL
-                lcall       ReadAllADC
+                lcall       ReadA
+                lcall       ReadB
+                lcall       ReadC
                 lgoto       $+1
                 movfw       CHVAL           ; Update the DC value if needed
                 addwf       FREQ,f
@@ -1784,7 +1800,7 @@ testloop        clrf        CHVAL
 
 changeFreq      clrf        CHVAL       ; Change the test frequency.
                 lcall       displayclear
-                lcall       SelectFreq
+                lcall       SetFreq
                 lgoto       testloop
 
 writeABC        lcall       displayclear
@@ -1878,25 +1894,7 @@ ConfigureSPI
 ; DIVH:DIVL
 ; w at return contains an error code:
 ; 0x0 - all OK, the capacitance value is stored in CAP0, CAP1, CAP2, CAP3.
-; FREQLOW (0x1) - test current too low (usually frequency too low).
-; FREQHI  (0x2) - frequency too high (ESR affects measurement too much).
-CalcCapacitance
-                MOV16FF     divisH, divisL, A_VH, A_VL  ; Transfer A in divis
-                SUB16BIT    divisH, divisL, B_VH, B_VL  ; divis -= B
-                ; Here divis contains (A-B), to perform some routine checks.
-                ; This term is proportional to the current used for the test.
-                movfw       divisH          ; Check if test current is OK.
-                sublw       CURR_THRESHOLD  ; (A-B) should be greater than a
-                btfsc       STATUS,C        ; certain threshold for the cap.
-                retlw       FREQLOW         ; to be meaningful.
-                btfsc       divisH,7        ; In some cases (A-B) is even <0
-                retlw       FREQLOW         ; Frequency too low, in this case!
-                movfw       divisH          ; Check if test current is OK.
-                sublw       80              ; (A-B) should be greater than a
-                btfss       STATUS,C        ; certain threshold for the cap.
-                retlw       FREQHI          ; to be meaningful
-                ; If everything is OK, we can start the real calculation.
-                MOV16FF     divid0, divid1, A_VH, A_VL  ; A-> 16 MSB divid
+CalcCap         MOV16FF     divid0, divid1, A_VH, A_VL  ; A-> 16 MSB divid
                 clrf        divid2          ; Put 0 to divid2, divid3
                 clrf        divid3
                 SUB16BIT    divid0, divid1, C_VH, C_VL  ; divid -= C
@@ -1959,7 +1957,7 @@ ManualMeasESR   clrf        CHVAL       ; This contains the user action
                 movfw       CHVAL       ; Update the frequency value if needed
                 addwf       FREQ,f
                 call        displayclear
-                call        SelectFreq  ; Write the frequency value
+                call        SetFreq  ; Write the frequency value
                 btfss       PORTA,RA7   ; Check if the button is depressed.
                 goto        Menu        ; If yes, go to the menu (exit).
                 lgoto       $+1         ; This is needed as we are in page 2.
@@ -1970,35 +1968,91 @@ ManualMeasESR   clrf        CHVAL       ; This contains the user action
                 lcall       CalcESR     ; Calculate the ESR and show it.
                 lgoto       ManualMeasESR   ; loop !
 
+
+; Frequency <0. Correct it and invalidate the current read.
+FrequencyLo     clrf        FREQ
+                movlw       FREQHI
+                goto        cont_meas 
+
+; Frequency >FMAX. Correct it and invalidate the current read.
+FrequencyHi     movlw       FMAX
+                movwf       FREQ
+                movlw       FREQLO
+                goto        cont_meas
+
 ; Try to measure automatically the capacitance and the ESR. Change the frequency
 ; until a capacitance can be read.
 AutomaticCapM   lcall       displayclear
+                lcall       showmeas
                 lcall       display2line
-AutomaticMeasL  clrf        CHVAL
+                BANKSEL     WRITEF
                 clrf        WRITEF
-                movlw       NOESR
-                movwf       ESRM
-                lcall       SelectFreq
+                clrf        SHOWNC
+                movlw       FREQLO
+                movwf       OLDW
+                clrf        FREQ
+AutomaticCapL   lgoto       $+1
+                clrf        CHVAL
+                btfsc       FREQ,7      ; Check if FREQ is negative.
+                goto        FrequencyLo
+                movfw       FREQ
+                sublw       FMAX+1
+                btfss       STATUS,C
+                goto        FrequencyHi
+                ; Here we are sure that the frequency is correct.
+                lcall       SetFreq     ; Try to measure the capacitance.
                 lcall       ReadAllADC
+                ; NOTE: the goto Menu will work as ReadAllADC is in page 0!
                 btfss       PORTA,RA7   ; Check if the button is depressed.
                 goto        Menu        ; If yes, go to the menu.
-                lcall       CalcCapacitance
                 lgoto       $+1
-                xorlw       0x0         ; Check if the capacitance is OK
+                movwf       CURW
+                xorlw       MEAS_OK
                 skpz
-                goto        nocap1
-                call        testlower   ; Test a lower frequency
-                movwf       ESRM
+                goto        invalid_m
+                movlw       '.'
+                lcall       sendchar
+                lcall       CalcCap
+                lgoto       $+1
+cont_meas       movwf       CURW        ; Save the current result
+                xorlw       CAP_OK      ; Check if the calculation was OK.
+                skpnz
+                goto        valid_read  ; If yes, jump there.
+invalid_m       movfw       OLDW
+                xorlw       CAP_OK
+                skpnz
+                goto        WriteResults
+                ;  If two successive reads fail, then erase the screen.
+                ;  only if SHOWNC!=0
+                movwf       SHOWNC
+                skpnz
+                goto        increasefreq
+                lcall       displayclear
+                lcall       showmeas
+                lcall       display2line
+                lgoto       $+1
+                clrf        SHOWNC
+increasefreq    incf        FREQ,f
+                goto        cont_cycle
+
+valid_read      decf        FREQ,f      ; Decrease the frequency
+cont_cycle      movfw       CURW        ; Save the value of CURW.
+                movwf       OLDW
+                goto        AutomaticCapL   ; Loop!
+
+
+WriteResults    movlw       0x1
+                movwf       SHOWNC
                 lcall       displaychome
                 lcall       WriteCap
-                lgoto       $+1
-                movfw       ESRM
-                btfss       STATUS,Z
-                goto        noESR
-                ; Now we measure the ESR, depending on the capacity.
-                ; We test CAPHH:CAPHL and the rules are as follows:
-                ; if C< 80 nF, ESR is not measured.
-                movlw       low  0x000C
+                lcall       display2line
+                lcall       ObtainESR
+                lgoto       increasefreq
+
+; Now we measure the ESR, depending on the capacity.
+; We test CAPHH:CAPHL and the rules are as follows:
+; if C< 80 nF, ESR is not measured.
+ObtainESR       movlw       low  0x000C
                 subwf       CAPHL,w
                 movlw       high 0x000C
                 btfss       STATUS,C
@@ -2036,94 +2090,53 @@ AutomaticMeasL  clrf        CHVAL
                 ; if C > 80 µF, ESR is measured at f = 10 kHz
                 goto        meas10
 
-testlower       decf        FREQ,w      ; If ok, decrement capacity
-                xorlw       0xFF        ; (if possible, of course!)
-                btfsc       STATUS,Z
-                retlw       MEASUREESR
-                decf        FREQ,f
-                lcall       SelectFreq
-                lcall       ReadAllADC
-                btfss       PORTA,RA7   ; Check if the button is depressed.
-                goto        Menu        ; If yes, go to the menu.
-                lcall       CalcCapacitance
-                xorlw       0x0         ; Check if the capacitance is OK
-                skpnz                   ; Do not measure ESR
-                goto        testlower
-                ;retlw       NOESR          ; If not, we just do not care, the old
-                incf        FREQ,f      ; value is kept in memory
-                lcall       SelectFreq  ; this is important to set the correct
-                retlw       MEASUREESR           ; measuring unit. Measure ESR
-
 
 meas200         movfw       FREQ
                 movwf       USR
                 movlw       .11
                 movwf       FREQ
-                lcall       SelectFreq
+                lcall       SetFreq
                 lcall       ReadAllADC
                 lcall       CalcESR
                 movfw       USR
                 movwf       FREQ
-                lgoto       AutomaticMeasL
+                return
 
 meas100         movfw       FREQ
                 movwf       USR
                 movlw       .10
                 movwf       FREQ
-                lcall       SelectFreq
+                lcall       SetFreq
                 lcall       ReadAllADC
                 lcall       CalcESR
                 movfw       USR
                 movwf       FREQ
-                lgoto       AutomaticMeasL
+                return
 
 meas20          movfw       FREQ
                 movwf       USR
                 movlw       .8
                 movwf       FREQ
-                lcall       SelectFreq
+                lcall       SetFreq
                 lcall       ReadAllADC
                 lcall       CalcESR
                 movfw       USR
                 movwf       FREQ
-                lgoto       AutomaticMeasL
+                return
 
 meas10          movfw       FREQ
                 movwf       USR
                 movlw       .7
                 movwf       FREQ
-                lcall       SelectFreq
+                lcall       SetFreq
                 lcall       ReadAllADC
                 lcall       CalcESR
                 movfw       USR
                 movwf       FREQ
-                lgoto       AutomaticMeasL
+                return
 
 noESR           lcall       clear2ndline
-                lgoto       AutomaticMeasL
-
-decrement       lcall       clear2ndline        ; If capacitance is not OK
-                decf        FREQ,w              ; Decrement the frequency
-                xorlw       0xFF
-                btfss       STATUS,Z
-                decf        FREQ,f              ; start again
-                lgoto       AutomaticMeasL
-
-nocap1          xorlw       FREQLOW
-                btfss       STATUS,Z
-                goto        decrement
-                lcall       displayclear        ; If capacitance is not OK
-                lcall       showmeas
-                lgoto       $+1
-                incf        FREQ,f              ; increment the frequency
-                movfw       FREQ
-                xorlw       .12                 ; until it gets past 11
-                skpz
-                goto        ex
-                movlw       .11
-                movwf       FREQ
-ex
-                lgoto       AutomaticMeasL
+                return
 
 
 ;*** 32 BIT SQUARE ROOT ***
