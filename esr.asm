@@ -766,6 +766,16 @@ syncosc         call        activedelay
 syncosc1        BANKSEL     CTRLP
                 btfsc       CTRLP,VSYNC ; Synchronise with the oscillator, then
                 goto        $-1         ; read the adc
+                btfsc       CTRLP,VSYNC
+                goto        $-1
+                btfsc       CTRLP,VSYNC
+                goto        $-1
+                btfsc       CTRLP,VSYNC
+                goto        $-1
+                btfsc       CTRLP,VSYNC
+                goto        $-1
+                btfss       CTRLP,VSYNC
+                goto        $-1
                 btfss       CTRLP,VSYNC
                 goto        $-1
 readadc
