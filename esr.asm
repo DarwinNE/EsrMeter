@@ -106,6 +106,8 @@ divisL          equ     0x35
 remdrH          equ     0x36
 remdrL          equ     0x37
 
+ESRW            equ     0x38
+
 LOOPCOUNT       equ     0x3C
 
 ; aHH:aHL:aLH:aLL*bH:bL -> a6:a5:aHH:aHL:aLH:aLL
@@ -213,9 +215,12 @@ CHVAL           equ     0x7F
 ; *****************************************************************************
                 ; Read a value from the ADC and store it in STH and STL.
 READV           MACRO       CTRL, STH,STL
-                call        preparer
+                call        sync
+                bcf         CTRLP, CTRLA
+                bcf         CTRLP, CTRLB
+                bcf         CTRLP, CTRLC
                 bsf         CTRLP,CTRL
-                call        syncosc
+                call        syncread
                 movfw       STOREH
                 movwf       STH
                 movfw       STOREL
@@ -467,7 +472,6 @@ UNIT11 = 0xE4           ; µ
                 nop
                 org         0004
                 goto        prg
-
 ; *****************************************************************************
 ;               Text tables (page 0)
 ; *****************************************************************************
@@ -509,8 +513,8 @@ freq11          addwf   PCL,f
                 DT      "f = 200 kHz",0
 automatic       addwf   PCL,f
                 DT      "Automatic C, ESR",0
-                org     0x100    ; This fills more or less one page
 
+                org     0x100    ; This fills more or less one page
 manual          addwf   PCL,f
                 DT      "ESR vs freq.",0
 tsetdc          addwf   PCL,f
@@ -590,12 +594,6 @@ prg
                 movlw       0x1
                 movwf       MENUSTATE
                 lgoto       SelectState
-
-; Used in READV, prepare everything for setting the delay.
-preparer
-                call        syncosc1
-                clrf        CTRLP
-                return
 
 ; Used in WRITELN, check if the address should be corrected for a page increase.
 checkc
@@ -751,7 +749,7 @@ err_hiosc       call        display2line
                 call        activedelay
                 return
 
-; Write that the resistance is too large.  ------- CURRENTLY NOT USED ---------
+; Write that the resistance is too large.
 err_reshi       call        display2line
                 WRITELN     text_reshi
                 call        activedelay
@@ -762,24 +760,22 @@ err_reshi       call        display2line
 ; improving the stability of the result at low frequency. Then perform a read
 ; of the ADC. A total of 64 reads is done and the result is the sum of all of
 ; those. Each read is 10 bits, so that the result fills up 16 bits.
-syncosc         call        activedelay
-syncosc1        BANKSEL     CTRLP
+sync            BANKSEL     CTRLP
                 btfsc       CTRLP,VSYNC ; Synchronise with the oscillator, then
                 goto        $-1         ; read the adc
                 btfsc       CTRLP,VSYNC
                 goto        $-1
                 btfsc       CTRLP,VSYNC
                 goto        $-1
-                btfsc       CTRLP,VSYNC
-                goto        $-1
-                btfsc       CTRLP,VSYNC
-                goto        $-1
                 btfss       CTRLP,VSYNC
                 goto        $-1
                 btfss       CTRLP,VSYNC
                 goto        $-1
-readadc
-                bsf         ADCON0,ADON ; Activate the ADC.
+                return
+
+syncread        call        activedelay
+                call        sync
+readadc         bsf         ADCON0,ADON ; Activate the ADC.
                 clrf        STOREH
                 clrf        STOREL
                 movlw       0x40
@@ -1962,6 +1958,7 @@ ManualMeasESR   clrf        CHVAL       ; This contains the user action
                 movlw       ACTIVE      ; Ensure that the frequency is written
                 movwf       WRITEF      ; when it is changed.
                 lcall       ReadAllADC  ; Read all the ADC data
+                movwf       ESRW
                 ; One has to check CHVAL here as the user may have changed the
                 ; frequency.
                 movfw       CHVAL       ; Update the frequency value if needed
@@ -1975,14 +1972,42 @@ ManualMeasESR   clrf        CHVAL       ; This contains the user action
                 btfss       STATUS,Z
                 goto        ManualMeasESR  ; If the frequency has changed, do not
                                         ; show the incomplete measurement.
+                movfw       ESRW
+                skpz
+                goto        HandleErrorsESR
                 lcall       CalcESR     ; Calculate the ESR and show it.
                 lgoto       ManualMeasESR   ; loop !
 
+HandleErrorsESR call        HandleErrors
+                goto        ManualMeasESR
+
+; Handle all the errors that can be contained in ESRW.
+HandleErrors    movfw       ESRW
+                xorlw       ERR_OSCLO
+                skpz
+                goto        next1
+                lcall       err_lowosc
+                lgoto       $+1
+                return
+next1           movfw       ESRW
+                xorlw       ERR_OSCHI
+                skpz
+                goto        next2
+                lcall       err_hiosc
+                lgoto       $+1
+                return
+next2           movfw       ESRW
+                xorlw       ERR_LOWCURR
+                skpz
+                goto        next3
+                lcall       err_reshi
+                lgoto       $+1
+next3           return
 
 ; Frequency <0. Correct it and invalidate the current read.
 FrequencyLo     clrf        FREQ
                 movlw       FREQHI
-                goto        cont_meas 
+                goto        cont_meas
 
 ; Frequency >FMAX. Correct it and invalidate the current read.
 FrequencyHi     movlw       FMAX
