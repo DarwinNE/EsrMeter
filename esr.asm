@@ -358,10 +358,10 @@ DIVC4  = .105       ; 1% of error here
 DIVC5  = .211
 DIVC6  = .527
 DIVC7  = .1054
-DIVC8  = .2108
-DIVC9  = .5271
-DIVC10 = .10541
-DIVC11 = .21083
+DIVC8  = .2108                  ; 20 kHz
+DIVC9  = .5271  * .110 / .100   ; 50 kHz        I would much prefer avoiding
+DIVC10 = .10541 * .140 / .100   ; 100 kHz       calibration coefficients here,
+DIVC11 = .21083 * .18  / .10    ; 200 kHz       but I couldn't...
 
 FREQUENCY = .20
 VALUE = .10736*FREQUENCY/.1000
