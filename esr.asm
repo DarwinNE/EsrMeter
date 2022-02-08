@@ -2085,84 +2085,15 @@ WriteResults    movlw       0x1
                 lgoto       increasefreq
 
 ; Now we measure the ESR, depending on the capacity.
-; We test CAPHH:CAPHL and the rules are as follows:
-; if C< 80 nF, ESR is not measured.
-ObtainESR       movlw       low  0x000C
-                subwf       CAPHL,w
-                movlw       high 0x000C
-                btfss       STATUS,C
-                addlw       .1
-                subwf       CAPHH,w
-                btfss       STATUS,C
+ObtainESR       movfw       FREQ
+                movwf       USR
+                movlw       .11-.4
+                subwf       FREQ,w
+                btfsc       STATUS,C
                 goto        noESR
-                ; if  80 nF < C <= 500 nF, ESR is measured at f=200 kHz
-                movlw       low  0x004C
-                subwf       CAPHL,w
-                movlw       high 0x004C
-                btfss       STATUS,C
-                addlw       .1
-                subwf       CAPHH,w
-                btfss       STATUS,C
-                goto        meas200
-                ; if 500 nF < C <= 2 µF, ESR is measured at f=100 kHz
-                movlw       low  0x0131
-                subwf       CAPHL,w
-                movlw       high 0x0131
-                btfss       STATUS,C
-                addlw       .1
-                subwf       CAPHH,w
-                btfss       STATUS,C
-                goto        meas100
-                ; if 2µF < C <= 80 µF, ESR is measured at f=20 kHz
-                movlw       low  0x2FAF
-                subwf       CAPHL,w
-                movlw       high 0x2FAF
-                btfss       STATUS,C
-                addlw       .1
-                subwf       CAPHH,w
-                btfss       STATUS,C
-                goto        meas20
-                ; if C > 80 µF, ESR is measured at f = 10 kHz
-                goto        meas10
-
-
-meas200         movfw       FREQ
-                movwf       USR
-                movlw       .11
-                movwf       FREQ
-                lcall       SetFreq
-                lcall       ReadAllADC
-                lcall       CalcESR
-                movfw       USR
-                movwf       FREQ
-                return
-
-meas100         movfw       FREQ
-                movwf       USR
-                movlw       .10
-                movwf       FREQ
-                lcall       SetFreq
-                lcall       ReadAllADC
-                lcall       CalcESR
-                movfw       USR
-                movwf       FREQ
-                return
-
-meas20          movfw       FREQ
-                movwf       USR
-                movlw       .8
-                movwf       FREQ
-                lcall       SetFreq
-                lcall       ReadAllADC
-                lcall       CalcESR
-                movfw       USR
-                movwf       FREQ
-                return
-
-meas10          movfw       FREQ
-                movwf       USR
-                movlw       .7
-                movwf       FREQ
+                movlw       .4
+                bcf         STATUS,C
+                addwf       FREQ,f
                 lcall       SetFreq
                 lcall       ReadAllADC
                 lcall       CalcESR
@@ -2171,6 +2102,8 @@ meas10          movfw       FREQ
                 return
 
 noESR           lcall       clear2ndline
+                movfw       USR
+                movwf       FREQ
                 return
 
 
