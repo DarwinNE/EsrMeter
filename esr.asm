@@ -34,7 +34,7 @@
 ; Constants
 OSC_LOTHRESHOLD equ     .35     ; Error if the ampl. A_VH is lower than this.
 OSC_HITHRESHOLD equ     .240    ; Error if the ampl. A_VH is higher than this.
-CURR_THRESHOLD  equ     .1      ; Threshold for high byte of A-B (current)
+CURR_THRESHOLD  equ     .2      ; Threshold for high byte of A-B (current)
 
 ; Control lines of the display device
 ; Control port used for LCD display
@@ -98,17 +98,18 @@ SHOWNC          equ     0x2F            ; Different from zero if a C is shown
 divid0          equ     0x30            ; Most significant byte
 divid1          equ     0x31
 divid2          equ     0x32
-divid3          equ     0x33      ; Least significant byte
-
+divid3          equ     0x33            ; Least significant byte
 divisH          equ     0x34
 divisL          equ     0x35
-
 remdrH          equ     0x36
 remdrL          equ     0x37
-
 ESRW            equ     0x38
+LOOPCOUNT       equ     0x39
 
-LOOPCOUNT       equ     0x3C
+ALTESRLL        equ     0x3A            ; Alternate measurement of ESR
+ALTESRLH        equ     0x3B            ; used to understand if the DUT
+ALTESRHL        equ     0x3C            ; is a resistance.
+ALTESRHH        equ     0x3D
 
 ; aHH:aHL:aLH:aLL*bH:bL -> a6:a5:aHH:aHL:aLH:aLL
 
@@ -283,8 +284,45 @@ SUB16BIT        MACRO       DESTH, DESTL, SOURCEH, SOURCEL
                 subwf       DESTH,f
                 ENDM
 
-                ; DEST = DEST + SOURCE
-                ; DEST3 is the LSB
+                ; DEST = DEST - SOURCE
+SUB32BIT        MACRO       DESTHH, DESTHL, DESTLH, DESTLL, SOURCEHH, SOURCEHL, SOURCELH, SOURCELL
+                movfw       SOURCELL
+                subwf       DESTLL,f
+                
+                movfw       SOURCELH
+                btfss       STATUS,C
+                incfsz      SOURCELH,w      ; Adjust borrow if C=1
+                subwf       DESTLH,f
+                
+                movfw       SOURCEHL
+                btfss       STATUS,C
+                incfsz      SOURCEHL,w      ; Adjust borrow if C=1
+                subwf       DESTHL,f
+                
+                movfw       SOURCEHH
+                btfss       STATUS,C
+                incfsz      SOURCEHH,w      ; Adjust borrow if C=1
+                subwf       DESTHH,f
+                ENDM
+
+; Invert a two's complement number
+; source http://www.piclist.com/techref/microchip/math/neg/32bit.htm
+INV32BIT        MACRO   VHH, VHL, VLH, VLL
+                comf    VLL,f           ;Complement all bytes
+                comf    VLH,f
+                comf    VHL,f
+                comf    VHH,f
+                incf    VLL,f           ;Inc. low byte always
+                skpnz                   ;Skip if no carry to higher bytes
+                incf    VLH,f           ;Carry to next byte
+                skpnz
+                incf    VHL,f
+                skpnz
+                incf    VHH,f
+                ENDM
+
+; DEST = DEST + SOURCE
+; DEST3 is the LSB
 ADD32BIT        MACRO       DEST0, DEST1, DEST2, DEST3, SOURCE0, SOURCE1, SOURCE2, SOURCE3
                 movfw       SOURCE3
                 addwf       DEST3,f
@@ -323,7 +361,7 @@ MOV16FF         MACRO       DESTH, DESTL, SOURCEH, SOURCEL
 
                 ; Program the correct frequency and configure the AD9833
 PROGFREQ        MACRO       LSB, MSB, message, DIVHA, DIVLA, UNI
-                local           exit
+                local       exit
                 movlw       (LSB & 0xFF00)>>8
                 movwf       LSBH
                 movlw       (LSB & 0x00FF)
@@ -350,14 +388,14 @@ exit
 ;               Constants for capacitance calculation
 ; *****************************************************************************
 
-DIVC0  = .2108      ; Results in mF
-DIVC1  = .7906
-DIVC2  = .21083
-DIVC3  = .53        ; Results in uF (2% of error here)
-DIVC4  = .105       ; 1% of error here
-DIVC5  = .211
-DIVC6  = .527
-DIVC7  = .1054
+DIVC0  = .2108                  ; 20 Hz, Results in mF
+DIVC1  = .7906                  ; 75 Hz
+DIVC2  = .21083                 ; 200 Hz
+DIVC3  = .53                    ; 500 Hz, Results in µF (2% of error here)
+DIVC4  = .105                   ; 1 kHz, 1% of error here
+DIVC5  = .211                   ; 2 kHz
+DIVC6  = .527                   ; 5 kHz
+DIVC7  = .1054                  ; 10 kHz
 DIVC8  = .2108                  ; 20 kHz
 DIVC9  = .5271  * .110 / .100   ; 50 kHz        I would much prefer avoiding
 DIVC10 = .10541 * .140 / .100   ; 100 kHz       calibration coefficients here,
@@ -385,15 +423,15 @@ MSB2 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB2 = (VALUE & 0x3FFF) | 0x4000
 DIVH2 = (DIVC2 & 0xFF00) >> .8
 DIVL2 = DIVC2 & 0x00FF
-UNIT2 = 'm'
-
-FREQUENCY = .500
+UNIT2 = 0xE4                                    ; IT SHOULD BE 'm' HERE!!!
+                                                ; but I checked and it does
+FREQUENCY = .500                                ; not work (4.7µF)
 VALUE = .10736*FREQUENCY/.1000
 MSB3 = ((VALUE & 0xFFFC000) >> .14) | 0x4000
 LSB3 = (VALUE & 0x3FFF) | 0x4000
 DIVH3 = (DIVC3 & 0xFF00) >> .8
 DIVL3 = DIVC3 & 0x00FF
-UNIT3 = 'm'
+UNIT3 = 0xE4            ; µ
 
 FREQUENCY = .1000
 VALUE = .10736*FREQUENCY/.1000
@@ -478,7 +516,7 @@ UNIT11 = 0xE4           ; µ
 text_welcome    addwf   PCL,f
                 DT      "Welcome ESR  1.0",0
 text_davide     addwf   PCL,f
-                DT      "D. Bucci 2021",0
+                DT      "D. Bucci 2022",0
 text_short      addwf   PCL,f
                 DT      "DC short...",0
 text_hiosc      addwf   PCL,f
@@ -585,6 +623,9 @@ nosignal        addwf   PCL,f
 measuring       addwf   PCL,f
                 DT      "Measuring!",0
 
+resist          addwf   PCL,f
+                DT      "Resistance",0
+
 ; *****************************************************************************
 ;               Main Program
 ; *****************************************************************************
@@ -610,34 +651,15 @@ Greetings       lgoto       $+1
                 WRITELN     text_davide     ; Copyright
                 return
 
-; Calculate the ESR in the current conditions.
-CalcESR         movfw       DCVAL
-                xorlw       DCVALUE_NO_DC   ; Check if a DC is present
-                btfsc       STATUS,Z
-                goto        directcalc  ; If no DC is present, continue
-                movlw       0x0E        ; Put cursor in the top right corner
-                call        displayaddrset
-                call        WriteDC     ; Write the symbol +/-DC
-directcalc      ; ESR=(B-C)/(A-B)*10
-                ; Transfer B in the high 16 bits of divid
-                MOV16FF     divid0, divid1, B_VH, B_VL
-                clrf        divid2      ; Put 0 to divid2, divid3
-                clrf        divid3
-                SUB16BIT    divid0, divid1, C_VH, C_VL  ; divid -= C
-                MOV16FF     divisH, divisL, A_VH, A_VL  ; Transfer A in divis
-                SUB16BIT    divisH, divisL, B_VH, B_VL  ; divis -= B
-                lcall       div_32_16       ; Divide! Result in divid0,1,2,3.
-                MOV16FF     aHH,aHL,divid0,divid1 ; Multiply times 1525
-                MOV16FF     aLH,aLL,divid2,divid3
-                movlw       0x5         ; Hi-byte of 1525
-                movwf       bH
-                movlw       0xF5        ; Lo-byte of 1525
-                movwf       bL
-                lcall       mult_32_16
+WriteResistive  WRITELN     resist
+                return
+
+; Write the value of the ESR contained in aHH, aHL, aLH and aLL.
+WriteESR
                 MOV16FF     bin+0, bin+1, aHH, aHL
                 MOV16FF     bin+2, bin+3, aLH, aLL
                 ; Write the second line (ESR result)
-outputESR       lcall       display2line
+                lcall       display2line
                 WRITELN     text_esr
                 call        WriteNumber24
                 call        sendspace
@@ -1892,6 +1914,33 @@ ConfigureSPI
                 bcf         SSPCON, WCOL
                 return
 
+; Calculate the ESR in the current conditions.
+; Result in milliohm contained in aHH, aHL, aLH and aLL
+CalcESR         movfw       DCVAL
+                xorlw       DCVALUE_NO_DC   ; Check if a DC is present
+                btfsc       STATUS,Z
+                goto        directcalc  ; If no DC is present, continue
+                movlw       0x0E        ; Put cursor in the top right corner
+                lcall        displayaddrset
+                lcall        WriteDC     ; Write the symbol +/-DC
+directcalc      ; ESR=(B-C)/(A-B)*10
+                ; Transfer B in the high 16 bits of divid
+                MOV16FF     divid0, divid1, B_VH, B_VL
+                clrf        divid2      ; Put 0 to divid2, divid3
+                clrf        divid3
+                SUB16BIT    divid0, divid1, C_VH, C_VL  ; divid -= C
+                MOV16FF     divisH, divisL, A_VH, A_VL  ; Transfer A in divis
+                SUB16BIT    divisH, divisL, B_VH, B_VL  ; divis -= B
+                lcall       div_32_16       ; Divide! Result in divid0,1,2,3.
+                MOV16FF     aHH,aHL,divid0,divid1 ; Multiply times 1525
+                MOV16FF     aLH,aLL,divid2,divid3
+                movlw       0x5         ; Hi-byte of 1525
+                movwf       bH
+                movlw       0xF5        ; Lo-byte of 1525
+                movwf       bL
+                lcall       mult_32_16
+                return   
+
 ; Calculate the capacitance from the data contained in A, B and C and the
 ; frequency (constants contained in DIVH and DIVL).
 ; This is the formula to be calculated.
@@ -1976,6 +2025,7 @@ ManualMeasESR   clrf        CHVAL       ; This contains the user action
                 skpz
                 goto        HandleErrorsESR
                 lcall       CalcESR     ; Calculate the ESR and show it.
+                lcall       WriteESR
                 lgoto       ManualMeasESR   ; loop !
 
 HandleErrorsESR call        HandleErrors
@@ -2075,16 +2125,25 @@ cont_cycle      movfw       CURW        ; Save the value of CURW.
                 movwf       OLDW
                 goto        AutomaticCapL   ; Loop!
 
-
+; We obtained a correct read of the capacitance. Write it and try to get the
+; ESR working at a higher frequency.
 WriteResults    movlw       0x1
                 movwf       SHOWNC
                 lcall       displaychome
                 lcall       WriteCap
+                ; The ESR is probably not correct at this frequency. We use it
+                ; as a test to see if it changes or not (i.e. for a resistance)
+                lcall       CalcESR
+                MOV16FF     ALTESRHH, ALTESRHL, aHH, aHL
+                MOV16FF     ALTESRLH, ALTESRLL, aLH, aLL
+
                 lcall       display2line
                 lcall       ObtainESR
                 lgoto       increasefreq
 
-; Now we measure the ESR, depending on the capacity.
+; Now we measure the ESR, depending on the capacity. If capacitance is measured
+; at a frequency step, we add 4 to that frequency step. If it exceeds 11, we do
+; not measure the ESR as the capacitance is too small.
 ObtainESR       movfw       FREQ
                 movwf       USR
                 movlw       .11-.4
@@ -2097,6 +2156,10 @@ ObtainESR       movfw       FREQ
                 lcall       SetFreq
                 lcall       ReadAllADC
                 lcall       CalcESR
+                lcall       WriteESR
+
+                lcall       CheckResistive
+
                 movfw       USR
                 movwf       FREQ
                 return
@@ -2106,6 +2169,33 @@ noESR           lcall       clear2ndline
                 movwf       FREQ
                 return
 
+; Here we check if the result is resistive. aHH-aLL contains the high freq. ESR
+; whereas ALTESRHH-ALTESRLL contain the low freq. ESR.
+; We take abs(ESR_HI-ESR_LO) and check if it is less than ESR_HI/4
+CheckResistive  SUB32BIT    ALTESRHH, ALTESRHL, ALTESRLH, ALTESRLL, aHH, aHL, aLH, aLL
+                btfss       ALTESRHH,7           ; Check if result is positive
+                goto        positivediff    ; Take absolute value of diff.
+                INV32BIT    ALTESRHH, ALTESRHL, ALTESRLH, ALTESRLL
+positivediff    
+                DIV2O32BIT  aHH, aHL, aLH, aLL
+                DIV2O32BIT  aHH, aHL, aLH, aLL
+                SUB32BIT    ALTESRHH, ALTESRHL, ALTESRLH, ALTESRLL, aHH, aHL, aLH, aLL
+                
+                ;MOV16FF     aHH, aHL, ALTESRHH, ALTESRHL
+               ; MOV16FF     aLH, aLL, ALTESRLH, ALTESRLL
+                
+                ;lcall       clear1stline
+                ;lcall       WriteESR
+
+                btfsc       ALTESRHH,7           ; Check if result is positive
+                goto        Resistive
+                return
+                
+Resistive       lcall       clear1stline
+                lcall       WriteResistive
+                lgoto       $+1
+                return
+                
 
 ;*** 32 BIT SQUARE ROOT ***
 ;sqrt(a) -> a
