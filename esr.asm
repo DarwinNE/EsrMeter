@@ -288,17 +288,14 @@ SUB16BIT        MACRO       DESTH, DESTL, SOURCEH, SOURCEL
 SUB32BIT        MACRO       DESTHH, DESTHL, DESTLH, DESTLL, SOURCEHH, SOURCEHL, SOURCELH, SOURCELL
                 movfw       SOURCELL
                 subwf       DESTLL,f
-                
                 movfw       SOURCELH
                 btfss       STATUS,C
                 incfsz      SOURCELH,w      ; Adjust borrow if C=1
                 subwf       DESTLH,f
-                
                 movfw       SOURCEHL
                 btfss       STATUS,C
                 incfsz      SOURCEHL,w      ; Adjust borrow if C=1
                 subwf       DESTHL,f
-                
                 movfw       SOURCEHH
                 btfss       STATUS,C
                 incfsz      SOURCEHH,w      ; Adjust borrow if C=1
@@ -618,7 +615,7 @@ dcval11         addwf   PCL,f
                 DT      "DC = 2 V",0
 
 nosignal        addwf   PCL,f
-                DT      "      ----",0
+                DT      "--",0
 
 measuring       addwf   PCL,f
                 DT      "Measuring!",0
@@ -626,6 +623,8 @@ measuring       addwf   PCL,f
 resist          addwf   PCL,f
                 DT      "Resistance",0
 
+changebatt      addwf   PCL,f
+                DT      "Change batt.",0
 ; *****************************************************************************
 ;               Main Program
 ; *****************************************************************************
@@ -651,8 +650,14 @@ Greetings       lgoto       $+1
                 WRITELN     text_davide     ; Copyright
                 return
 
+; Write that the measured component is a resistance.
 WriteResistive  WRITELN     resist
                 return
+
+; Write that the battery voltage is too low.
+LowBattery      call        displaychome
+                WRITELN     changebatt
+                lgoto       MeasBattery
 
 ; Write the value of the ESR contained in aHH, aHL, aLH and aLL.
 WriteESR
@@ -1137,10 +1142,9 @@ Write4          andlw       0x0F
                 call        WriteNumber8
                 return
 
-
 WriteNumber24
                 clrf        NOZ
-                lcall        b2bcd
+                lcall       b2bcd
                 lgoto       $+1
                 WRITE2DIGITS bcd
                 swapf       bcd+1,w
@@ -1803,6 +1807,13 @@ MeasBattery     BANKSEL     ADCON0
                 lcall       sendspace
                 movlw       'V'
                 lcall       sendchar
+                movlw       0x04            ; Check if the battery voltage
+                subwf       aHH,f           ; is above 6.7 V (0x04 magic numb.
+                btfss       aHH,7           ; for the highest byte.
+                goto        batteryok
+                lgoto       LowBattery
+
+batteryok
                 lcall       longdelay
                 lcall       longdelay
                 return
