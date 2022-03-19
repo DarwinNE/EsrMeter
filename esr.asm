@@ -56,22 +56,17 @@ TRISFSYNC       equ     TRISC
 FSYNC           equ     RC4
 VSYNC           equ     RC7
 
-
 ; These registers must be in the same page of the DATALCD register
 TMP             equ     0x20        ; Dummy for LCD nibble mode
 CNT             equ     0x21        ; Counter
 SDR             equ     0x22        ; Short Delay Register
 LDR             equ     0x23        ; Long Delay Register
 TMP1            equ     0x24        ; Dummy for reversing bit order
-
 UNIT            equ     0x25        ; Multiplier for measuring unit for caps.
 ESRM            equ     0x26        ; Flag: measure ESR or not.
-
 MEASUREESR      equ     0x00        ; Constants for ESRM
 NOESR           equ     0x01
-
 WRITEF          equ     0x27        ; Write the frequency when calling SetFreq
-
 ACTIVE          equ     0x01
 NOACTIVE        equ     0x00
 
@@ -82,7 +77,6 @@ ERR_LOWCURR     equ     0x03
 
 CURW            equ     0x28        ; Used in the automatic measurement of C.
 OLDW            equ     0x29        ; Same as before.
-
 TMP_1           equ     0x2A
 HND             equ     0x2B
 DEC             equ     0x2C
@@ -90,7 +84,6 @@ UNT             equ     0x2D
 
 ; Used to send 16 bit data via SPI, combined with the w register.
 SENDL           equ     0x2E
-
 SHOWNC          equ     0x2F            ; Different from zero if a C is shown
 
 ; Used for the div_32_16 operator: the two operands, the result and the
@@ -105,11 +98,12 @@ remdrH          equ     0x36
 remdrL          equ     0x37
 ESRW            equ     0x38
 LOOPCOUNT       equ     0x39
-
 ALTESRLL        equ     0x3A            ; Alternate measurement of ESR
 ALTESRLH        equ     0x3B            ; used to understand if the DUT
 ALTESRHL        equ     0x3C            ; is a resistance.
 ALTESRHH        equ     0x3D
+
+SOUNDOFF        equ     0x3E            ; =0 sound on =1 sound off
 
 ; aHH:aHL:aLH:aLL*bH:bL -> a6:a5:aHH:aHL:aLH:aLL
 
@@ -242,7 +236,6 @@ WRITE2DIGITS    MACRO       BB
 WRITELN         MACRO       msg
                 local       loop_ch
                 local       end_mes
-                BANKSEL     CNT
                 clrf        CNT
 loop_ch
                 movlw       HIGH msg
@@ -639,17 +632,13 @@ yes             addwf   PCL,f
                 DT      "YES",0
 
 no              addwf   PCL,f
-                DT      "NO",0
-
+                DT      "NO ",0     ; The space erases the "S" of "YES".
 
 ; We put here all the code containing tables, so to check that the page limits
 ; are not not crossed.
 
 ; Select the appropriate DC value and show the corresponding text.
 SelectDC        btfsc       DCVAL,7         ; Check if DCVAL is negative
-                goto        sdc1            ; If yes, put DCVAL=1
-                movfw       DCVAL
-                btfsc       STATUS,Z        ; Check if DCVAL is zero
                 goto        sdc1            ; If yes, put DCVAL=1
                 movlw       .11
                 subwf       DCVAL,w         ; Check if DCVAL is greater than 11
@@ -660,7 +649,7 @@ SelectDC        btfsc       DCVAL,7         ; Check if DCVAL is negative
                 movwf       PCLATH
                 movfw       DCVAL
 DCTable         addwf       PCL,f
-                goto        sdc1
+                goto        sdc1            ; If DCVAL=0, put DCVAL=1
                 goto        sdc1
                 goto        sdc2
                 goto        sdc3
@@ -710,6 +699,31 @@ FTable          addwf       PCL,f
                     ERROR "FTable crosses page boundary!"
                 ENDIF
 
+; Determine which menu has to be shown.
+SelectMenu      btfsc       MENUSTATE,7     ; Check if MENUSTATE is >0
+                goto        smenu1          ; If yes, put MENUSTATE=1
+                movlw       .5
+                subwf       MENUSTATE,w     ; Check if MENUSTATE is >5
+                btfsc       STATUS,C
+                goto        smenu5          ; If yes, put MENUSTATE=5
+; We are sure MENUSTATE within range. Jump to the corresponding routine.
+                movlw       HIGH MENUTable
+                movwf       PCLATH
+                movfw       MENUSTATE
+MENUTable       addwf       PCL,f
+                goto        smenu1
+                goto        smenu1
+                goto        smenu2
+                goto        smenu3
+                goto        smenu4
+                goto        smenu5
+
+                ; Check if page boundary is crossed.
+                ; Source: http://www.piclist.com/techref/microchip/tables.htm
+                IF ((HIGH ($)) != (HIGH (MENUTable)))
+                    ERROR "MENUTable crosses page boundary!"
+                ENDIF
+
 ; *****************************************************************************
 ;               Main Program
 ; *****************************************************************************
@@ -727,6 +741,8 @@ checkc
                 movwf       PCLATH
                 movf        CNT,w
                 return
+
+; Used in WRITELN, send a character
 
 ; Show the program name and a copyright line.
 Greetings       lgoto       $+1
@@ -949,28 +965,6 @@ ChooseMenu      lcall       clear1stline    ; Move to the second line
                 clrf        CHVAL
                 goto        ChooseMenu
 
-; Determine which menu has to be shown.
-SelectMenu      movlw       .5
-                subwf       MENUSTATE,w
-                btfsc       STATUS,C
-                goto        smenu1
-                movlw       .1
-                xorwf       MENUSTATE,w
-                btfsc       STATUS,Z
-                goto        smenu1
-                movlw       .2
-                xorwf       MENUSTATE,w
-                btfsc       STATUS,Z
-                goto        smenu2
-                movlw       .3
-                xorwf       MENUSTATE,w
-                btfsc       STATUS,Z
-                goto        smenu3
-smenu4          movlw       .4
-                movwf       MENUSTATE
-                WRITELN     testmode
-                return
-
 ; This is needed as lgoto is a macro
 ExitMenu        lgoto       SelectState
 
@@ -986,12 +980,46 @@ smenu2          WRITELN     manual
 smenu3          WRITELN     tsetdc
                 return
 
+smenu4          WRITELN     soundactive
+                return
+
+smenu5          movlw       .5
+                movwf       MENUSTATE
+                WRITELN     testmode
+                return
+
 ; *****************************************************************************
 
 ; Write the text associated to the measurement of the battery.
 WriteBattery    lgoto       $+1
                 WRITELN     text_battery
                 return
+
+; In this loop one can chose if the sound is active or not.
+ChooseSound     lcall       displayclear
+                WRITELN     soundactive
+ChooseSoundLoop call        display2line    ; Move to the second line
+                movfw       CHVAL           ; Update SOUNDOFF if needed
+                addwf       SOUNDOFF,f
+                clrf        CHVAL
+                movlw       .1
+                btfsc       SOUNDOFF,7      ; Check if SOUNDOFF<0
+                movwf       SOUNDOFF
+                movlw       .2
+                subwf       SOUNDOFF,w      ; Check if SOUNDOFF is >1
+                btfsc       STATUS,C
+                clrf        SOUNDOFF
+                movfw       SOUNDOFF
+                btfss       STATUS,Z
+                goto        writeno
+                WRITELN     yes
+contSoundLoop   call        activedelay
+                btfss       PORTA,RA7
+                goto        Menu            ; Exit from this loop
+                goto        ChooseSoundLoop
+
+writeno         WRITELN     no
+                goto        contSoundLoop
 
 ; In this loop one can choose the DC value to be set.
 ChooseDc        lcall       displayclear
@@ -1676,6 +1704,7 @@ InitAll         BANKSEL     ANSEL
                 lcall       InitDisplay
                 lcall       Greetings
                 clrf        FREQ            ; Standard values for frequency
+                clrf        SOUNDOFF        ; Activate sound
                 movlw       0x4
                 movwf       CHVAL           ; Force setting of AD9833
                 movlw       DCVALUE_NO_DC   ; Standard value for DC (no DC)
@@ -1762,11 +1791,16 @@ SelectState     lgoto       $+1
                 xorwf       MENUSTATE,w
                 btfsc       STATUS,Z
                 goto        state4
+                movlw       .5
+                xorwf       MENUSTATE,w
+                btfsc       STATUS,Z
+                goto        state5
 
 state1          lgoto       AutomaticCapM
 state2          lgoto       ManualMeasESR
 state3          lgoto       ChooseDc
-state4          lgoto       Diagnostic
+state4          lgoto       ChooseSound
+state5          lgoto       Diagnostic
 
 ; Measure and show the battery voltage. Consider a voltage divider made by
 ; 47kohm + 22kohm resistances.
@@ -2062,7 +2096,10 @@ FrequencyHi     movlw       FMAX
                 goto        cont_meas
 
 ; Emit a beep! The w register must contain the duration of the beep.
-Beep            BANKSEL     TRISA
+Beep            movfw       SOUNDOFF    ; Check if the sound is active.
+                btfss       STATUS,Z
+                return
+                BANKSEL     TRISA       ; Sound port as output.
                 bcf         TRISA,6
                 BANKSEL     PORTA
                 movwf       CNT
