@@ -551,6 +551,8 @@ automatic       addwf   PCL,f
 
 manual          addwf   PCL,f
                 DT      "ESR vs freq.",0
+
+; *****************************************************************************
                 org     0x100    ; This fills more or less one page
 
 tsetdc          addwf   PCL,f
@@ -625,7 +627,89 @@ resist          addwf   PCL,f
                 DT      "Resistance",0
 
 changebatt      addwf   PCL,f
-                DT      "Change batt.",0
+                DT      "Change battery",0
+
+soundactive     addwf   PCL,f
+                DT      "Sound active",0
+
+; *****************************************************************************
+                org     0x200    ; This fills more or less the second page
+
+yes             addwf   PCL,f
+                DT      "YES",0
+
+no              addwf   PCL,f
+                DT      "NO",0
+
+
+; We put here all the code containing tables, so to check that the page limits
+; are not not crossed.
+
+; Select the appropriate DC value and show the corresponding text.
+SelectDC        btfsc       DCVAL,7         ; Check if DCVAL is negative
+                goto        sdc1            ; If yes, put DCVAL=1
+                movfw       DCVAL
+                btfsc       STATUS,Z        ; Check if DCVAL is zero
+                goto        sdc1            ; If yes, put DCVAL=1
+                movlw       .11
+                subwf       DCVAL,w         ; Check if DCVAL is greater than 11
+                btfsc       STATUS,C
+                goto        sdc11           ; If yes, put DCVAL=11
+; We are sure DCVAL is in the correct range. Jump to the corresponding routine.
+                movlw       HIGH DCTable
+                movwf       PCLATH
+                movfw       DCVAL
+DCTable         addwf       PCL,f
+                goto        sdc1
+                goto        sdc1
+                goto        sdc2
+                goto        sdc3
+                goto        sdc4
+                goto        sdc5
+                goto        sdc6
+                goto        sdc7
+                goto        sdc8
+                goto        sdc9
+                goto        sdc10
+                goto        sdc11
+                
+                ; Check if page boundary is crossed.
+                ; Source: http://www.piclist.com/techref/microchip/tables.htm
+                IF ((HIGH ($)) != (HIGH (DCTable)))
+                    ERROR "DCTable crosses page boundary!"
+                ENDIF
+
+; Select the appropriate frequency value and show the corresponding text.
+SetFreq         btfsc       FREQ,7          ; Check if FREQ is negative
+                clrf        FREQ            ; If yes, put FREQ=0
+                movlw       .11
+                subwf       FREQ,w          ; Check if FREQ is greater than 11
+                btfsc       STATUS,C
+                goto        sfreq11         ; If yes, put FREQ=11
+; We are sure DCVAL is in the correct range. Jump to the corresponding routine.
+                movlw       HIGH FTable
+                movwf       PCLATH
+                movfw       FREQ
+FTable          addwf       PCL,f
+                goto        sfreq0
+                goto        sfreq1
+                goto        sfreq2
+                goto        sfreq3
+                goto        sfreq4
+                goto        sfreq5
+                goto        sfreq6
+                goto        sfreq7
+                goto        sfreq8
+                goto        sfreq9
+                goto        sfreq10
+                goto        sfreq11
+
+                ; Check if page boundary is crossed.
+                ; Source: http://www.piclist.com/techref/microchip/tables.htm
+                IF ((HIGH ($)) != (HIGH (FTable)))
+                    ERROR "FTable crosses page boundary!"
+                ENDIF
+
 ; *****************************************************************************
 ;               Main Program
 ; *****************************************************************************
@@ -680,7 +764,7 @@ mult
                 rlf         bin+0,f
                 btfsc       STATUS,C
                 goto        over
-                decfsz      CNT
+                decfsz      CNT,f
                 goto        mult
                 movfw       aHH
                 btfsc       STATUS,Z
@@ -922,60 +1006,6 @@ ChooseDcLoop    lcall       display2line    ; Move to the second line
                 goto        Menu            ; Exit from this loop
                 goto        ChooseDcLoop
 
-SelectDC        btfsc       DCVAL,7         ; Check if DCVAL is negative
-                goto        sdc1            ; If yes, put DCVAL=1
-                movfw       DCVAL
-                btfsc       STATUS,Z        ; Check if DCVAL is zero
-                goto        sdc1            ; If yes, put DCVAL=1
-                movlw       .11
-                subwf       DCVAL,w         ; Check if DCVAL is greater than 9
-                btfsc       STATUS,C
-                goto        sdc11            ; If yes, put DCVAL=9
-@choose         movlw       .1
-                xorwf       DCVAL,w         ; Write the correct message
-                btfsc       STATUS,Z
-                goto        sdc1
-                movlw       .2
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc2
-                movlw       .3
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc3
-                movlw       .4
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc4
-                movlw       .5
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc5
-                movlw       .6
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc6
-                movlw       .7
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc7
-                movlw       .8
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc8
-                movlw       .9
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc9
-                movlw       .10
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc10
-                movlw       .11
-                xorwf       DCVAL,w
-                btfsc       STATUS,Z
-                goto        sdc11
-
 sdc1            movlw       0x1             ; We need to be sure that negative
                 movwf       DCVAL           ; values are transformed into 1
                 WRITELN     dcval1
@@ -1022,119 +1052,54 @@ sdc11           movlw       .11             ; We need to be sure that >11 ->11
                 WRITELN     dcval11
                 goto        SetPWM
 
-SetFreq      movlw       .0
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq0
-                movlw       .1
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq1
-                movlw       .2
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq2
-                movlw       .3
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq3
-                movlw       .4
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq4
-                movlw       .5
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq5
-                movlw       .6
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq6
-                movlw       .7
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq7
-                movlw       .8
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq8
-                movlw       .9
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq9
-                movlw       .10
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq10
-                movlw       .11
-                xorwf       FREQ,w
-                btfsc       STATUS,Z
-                goto        sfreq11
 
-                btfsc       FREQ,7
-                goto        @set0
-                movlw       FREQ
-                btfsc       STATUS,Z
-                goto        @set0
-
-                movlw       .10
-                subwf       FREQ,w
-                btfss       STATUS,C
-                goto        @set0
-                movlw       .11
-                movwf       FREQ
-                goto        SetFreq
-
-@set0
-                movlw       0               ; If we get here, FREQ contains an
-                movwf       FREQ            ; invalid data. Put 0.
-                goto        SetFreq
-
-sfreq0:
+sfreq0
                 PROGFREQ    LSB0,MSB0,freq0,DIVH0,DIVL0,UNIT0
                 return
 
-sfreq1:
+sfreq1
                 PROGFREQ    LSB1,MSB1,freq1,DIVH1,DIVL1,UNIT1
                 return
 
-sfreq2:
+sfreq2
                 PROGFREQ    LSB2,MSB2,freq2,DIVH2,DIVL2,UNIT2
                 return
 
-sfreq3:
+sfreq3
                 PROGFREQ    LSB3,MSB3,freq3,DIVH3,DIVL3,UNIT3
                 return
 
-sfreq4:
+sfreq4
                 PROGFREQ    LSB4,MSB4,freq4,DIVH4,DIVL4,UNIT4
                 return
 
-sfreq5:
+sfreq5
                 PROGFREQ    LSB5,MSB5,freq5,DIVH5,DIVL5,UNIT5
                 return
 
-sfreq6:
+sfreq6
                 PROGFREQ    LSB6,MSB6,freq6,DIVH6,DIVL6,UNIT6
                 return
 
-sfreq7:
+sfreq7
                 PROGFREQ    LSB7,MSB7,freq7,DIVH7,DIVL7,UNIT7
                 return
 
-sfreq8:
+sfreq8
                 PROGFREQ    LSB8,MSB8,freq8,DIVH8,DIVL8,UNIT8
                 return
 
-sfreq9:
+sfreq9
                 PROGFREQ    LSB9,MSB9,freq9,DIVH9,DIVL9,UNIT9
                 return
 
-sfreq10:
+sfreq10
                 PROGFREQ    LSB10,MSB10,freq10,DIVH10,DIVL10,UNIT10
                 return
 
-sfreq11:
+sfreq11
+                movlw       .11
+                movwf       FREQ
                 PROGFREQ    LSB11,MSB11,freq11,DIVH11,DIVL11,UNIT11
                 return
 
