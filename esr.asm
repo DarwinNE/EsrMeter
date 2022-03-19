@@ -549,9 +549,10 @@ freq11          addwf   PCL,f
 automatic       addwf   PCL,f
                 DT      "Automatic C, ESR",0
 
-                org     0x100    ; This fills more or less one page
 manual          addwf   PCL,f
                 DT      "ESR vs freq.",0
+                org     0x100    ; This fills more or less one page
+
 tsetdc          addwf   PCL,f
                 DT      "Set DC",0
 text_cap        addwf   PCL,f
@@ -671,6 +672,24 @@ WriteESR
                 movlw       0xF4
                 call        sendchar    ; Write the ohm symbol
                 call        sendlinespaces
+                movlw       0x4         ; Multiply x16 the value to calculate
+                movwf       CNT         ; the beep duration
+mult
+                bcf         STATUS,C
+                rlf         bin+1,f
+                rlf         bin+0,f
+                btfsc       STATUS,C
+                goto        over
+                decfsz      CNT
+                goto        mult
+                movfw       aHH
+                btfsc       STATUS,Z
+                movlw       0x1
+                lcall       Beep        ; Emit a beep
+                return
+
+over            movlw       0xFF
+                lcall       Beep
                 return
 
 ReadA           READV       CTRLA, A_VH, A_VL
@@ -763,7 +782,7 @@ err_lowosc      call        displayclear
                 call        activedelay
                 return
 
-; If the measurement is not possible, show "----".
+; If the measurement is not possible, show "--".
 err_lowcurr
 nosig           call        display2line
                 WRITELN     nosignal
@@ -869,7 +888,7 @@ smenu4          movlw       .4
                 return
 
 ; This is needed as lgoto is a macro
-ExitMenu              lgoto       SelectState
+ExitMenu        lgoto       SelectState
 
 
 smenu1          movlw       0x1             ; We need to be sure that negative
@@ -1134,6 +1153,10 @@ showmeas
 
 ; *****************************************************************************
 ; Write a 24-bit number contained in bin to bin+2 (big endian) on the LCD
+; Use a fixed decimal point format, do not write the last 4 digits:
+; XXX.XXX____
+; (where ____ represent the figures that are ignored).
+; For instance 0x12345678 yields 305419896 that is truncated as 30.541 (TOCHECK)
 ; *****************************************************************************
 
 Write4          andlw       0x0F
@@ -1363,9 +1386,7 @@ busywait
                 bsf         STATUS,C
                 bcf         DATALCD, E
                 nop
-                nop
                 bsf         DATALCD, E      ; Raise E line
-                nop
                 nop
                 bcf         DATALCD, E
                 btfsc       STATUS, C       ; Test the carry
@@ -1382,7 +1403,6 @@ busywait
 pulse_e
                 BANKSEL     DATALCD
                 bsf         DATALCD,E
-                nop
                 nop
                 bcf         DATALCD,E
                 return
@@ -2076,6 +2096,22 @@ FrequencyHi     movlw       FMAX
                 movlw       FREQLO
                 goto        cont_meas
 
+; Emit a beep! The w register must contain the duration of the beep.
+Beep            BANKSEL     TRISA
+                bcf         TRISA,6
+                BANKSEL     PORTA
+                movwf       CNT
+loop_b
+                bsf         PORTA,6
+                lcall       shortdelay
+                bcf         PORTA,6
+                lcall       shortdelay
+                lgoto       $+1
+                decfsz      CNT,f
+                goto       loop_b
+                return
+                
+
 ; Try to measure automatically the capacitance and the ESR. Change the frequency
 ; until a capacitance can be read.
 AutomaticCapM   lcall       displayclear
@@ -2147,7 +2183,6 @@ WriteResults    movlw       0x1
                 lcall       CalcESR
                 MOV16FF     ALTESRHH, ALTESRHL, aHH, aHL
                 MOV16FF     ALTESRLH, ALTESRLL, aLH, aLL
-
                 lcall       display2line
                 lcall       ObtainESR
                 lgoto       increasefreq
@@ -2168,9 +2203,7 @@ ObtainESR       movfw       FREQ
                 lcall       ReadAllADC
                 lcall       CalcESR
                 lcall       WriteESR
-
                 lcall       CheckResistive
-
                 movfw       USR
                 movwf       FREQ
                 return
@@ -2191,13 +2224,6 @@ positivediff
                 DIV2O32BIT  aHH, aHL, aLH, aLL
                 DIV2O32BIT  aHH, aHL, aLH, aLL
                 SUB32BIT    ALTESRHH, ALTESRHL, ALTESRLH, ALTESRLL, aHH, aHL, aLH, aLL
-                
-                ;MOV16FF     aHH, aHL, ALTESRHH, ALTESRHL
-               ; MOV16FF     aLH, aLL, ALTESRLH, ALTESRLL
-                
-                ;lcall       clear1stline
-                ;lcall       WriteESR
-
                 btfsc       ALTESRHH,7           ; Check if result is positive
                 goto        Resistive
                 return
