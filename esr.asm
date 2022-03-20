@@ -764,6 +764,8 @@ LowBattery      call        displaychome
 WriteESR
                 MOV16FF     bin+0, bin+1, aHH, aHL
                 MOV16FF     bin+2, bin+3, aLH, aLL
+                ; Use divid0 and divid1 as a temporary storage (beep length)
+                MOV16FF     divid0, divid1, aHH, aHL
                 ; Write the second line (ESR result)
                 lcall       display2line
                 WRITELN     text_esr
@@ -776,13 +778,13 @@ WriteESR
                 movwf       CNT         ; the beep duration
 mult
                 bcf         STATUS,C
-                rlf         bin+1,f
-                rlf         bin+0,f
+                rlf         divid1,f
+                rlf         divid0,f
                 btfsc       STATUS,C
                 goto        over
                 decfsz      CNT,f
                 goto        mult
-                movfw       aHH
+                movfw       divid0
                 btfsc       STATUS,Z
                 movlw       0x1
                 lcall       Beep        ; Emit a beep
@@ -2096,13 +2098,13 @@ FrequencyHi     movlw       FMAX
                 goto        cont_meas
 
 ; Emit a beep! The w register must contain the duration of the beep.
-Beep            movfw       SOUNDOFF    ; Check if the sound is active.
+Beep            movwf       CNT
+                movfw       SOUNDOFF    ; Check if the sound is active.
                 btfss       STATUS,Z
                 return
                 BANKSEL     TRISA       ; Sound port as output.
                 bcf         TRISA,6
                 BANKSEL     PORTA
-                movwf       CNT
 loop_b
                 bsf         PORTA,6
                 lcall       shortdelay
