@@ -1,0 +1,14 @@
+CORREZIONI Parte digitale
+
+- invertire piedini 1,2 e 4,5 sul connettore ICSP. PGC va collegato sulla linea 5, PGD sulla linea 4; +V va sul piedino 2 e /MCLR/THV va sul piedino 1.
+- invertire la numerazione 1 -> 6 a 6 -> 1, di modo che il piedino 1 si veda a destra guardando da sopra lo stampato. Ciò permette di inserire il PICkit2 in maniera più naturale con i led e la serigrafia verso l'alto.
+- aggiungere un triangolo in serigrafia in corrispondenza del piedino 1 per facilitare l'inserimento corretto del PICkit2.
+- invertire RC6 e RC2. In altre parole, RC6 deve andare a S1 mentre RC2 deve andare a PWM.
+- portare R13 a 22kΩ al posto di 3,9kΩ.
+- aggiungere un condensatore da 330 nF tra RA2 (GND) e RA0 (OUT), vicino al PIC.
+- eliminare le resistenze R7, R8, R10, ho messo 0Ω e va benissimo.
+- il regolatore di tensione IC2 dissipa soltanto 80 mW, probabilmente non c'è bisogno di una grande area ramata per dissipare il calore prodotto.
+- ingrandire i fori per l'encoder. Perlomeno quello che usato ho io non ci entrava proprio.
+- eliminare R12.
+- collegare RC7 (pin 18) a X (uscita di IC3 sulla parte analogica)
+- aggiungere una resistenza da 10kΩ tra PGM/RB3 e 0V (si veda pagina 224 del datasheet PIC16F883)
