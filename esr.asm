@@ -145,6 +145,8 @@ CAPHL           equ     0x5C
 CAPLH           equ     0x5D
 CAPLL           equ     0x5E
 
+FLAG            equ     0x5F
+
 indf            equ     0
 fsr             equ     4
 
@@ -2127,12 +2129,13 @@ AutomaticCapM   lcall       displayclear
                 movlw       FREQLO
                 movwf       OLDW
                 clrf        FREQ
+                clrf        FLAG
 AutomaticCapL   lgoto       $+1
                 clrf        CHVAL
                 btfsc       FREQ,7      ; Check if FREQ is negative.
                 goto        FrequencyLo
                 movfw       FREQ
-                sublw       FMAX+1
+                sublw       FMAX+1      ; Check if FREQ < FMAX
                 btfss       STATUS,C
                 goto        FrequencyHi
                 ; Here we are sure that the frequency is correct.
@@ -2168,10 +2171,19 @@ invalid_m       movfw       OLDW
                 lcall       display2line
                 lgoto       $+1
                 clrf        SHOWNC
+                clrf        FLAG
 increasefreq    incf        FREQ,f
                 goto        cont_cycle
 
-valid_read      decf        FREQ,f      ; Decrease the frequency
+valid_read      movfw       OLDW        ; This speeds up the search for the
+                xorlw       CAP_OK      ; reasonable frequency.
+                skpz
+                goto        skpq
+                movfw       FLAG
+                skpz
+                goto        skpq
+                decf        FREQ,f      ; Decrease the frequency
+skpq            decf        FREQ,f      ; Decrease the frequency
 cont_cycle      movfw       CURW        ; Save the value of CURW.
                 movwf       OLDW
                 goto        AutomaticCapL   ; Loop!
@@ -2180,6 +2192,7 @@ cont_cycle      movfw       CURW        ; Save the value of CURW.
 ; ESR working at a higher frequency.
 WriteResults    movlw       0x1
                 movwf       SHOWNC
+                movwf       FLAG
                 lcall       displaychome
                 lcall       WriteCap
                 ; The ESR is probably not correct at this frequency. We use it

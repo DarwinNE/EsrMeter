@@ -12,6 +12,7 @@
 
 oldw = INVALID;
 freq = 0;
+flag = FALSE;
 
 // Situations difficult to handle are the read at freq=0 and the read at
 // freq == fmax.
@@ -20,9 +21,9 @@ while(true) {
     if(freq >=0 && freq<=fmax) {    // Check the frequency is correct.
         SetFreq();          // Try to measure the capacitance. If calculation
         if(curw=ReadADC()==MEAS_OK) {
+            printf(".");
             curw=CalcCap();  // fails the value of the capacity is not updated.
         }
-        printf(".");
     } else {
         // Here the frequency is invalid. We must correct it.
         if(freq<0) {
@@ -37,6 +38,7 @@ while(true) {
         // The current read is valid. The value of the capacitance is stored
         // in memory and is not lost.
         // Try to decrease the frequency.
+        if(oldw==CAP_OK && !flag) {--freq;}
         --freq;
     } else {
         // The current read is invalid. It can be because we are at the
@@ -46,16 +48,17 @@ while(true) {
             // We are toggling at the minimum frequency! Perfect situation.
             // The old value of the capacity is the correct one and can be
             // written, the ESR calculated too.
+            flag = TRUE;
             WriteCap();
             MeasureESR();
             WriteESR();
         } else {
             printf("Measuring");
+            flag = FALSE;
         }
         // If capacitance can not be read, increase the frequency.
         ++freq;
     }
     oldw = curw;
 }
-
 
