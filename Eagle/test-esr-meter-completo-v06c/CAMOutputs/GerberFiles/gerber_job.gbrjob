@@ -1,0 +1,24 @@
+{
+    "Header": {
+        "Comment": "All values are metric (mm)",
+        "CreationDate": "2022-07-24T20:13:24Z",
+        "GenerationSoftware": {
+            "Application": "EAGLE",
+            "Vendor": "Autodesk",
+            "Version": "9.6.2"
+        },
+        "Part": "Single"
+    },
+    "Overall": {
+        "BoardThickness": 1.57,
+        "LayerNumber": 2,
+        "Name": {
+            "ProjectId": "test-esr-meter-completo-v06c"
+        },
+        "Owner": "Davide Bucci <davbucci@tiscali.it>",
+        "Size": {
+            "X": 97.94875,
+            "Y": 83.02625
+        }
+    }
+}

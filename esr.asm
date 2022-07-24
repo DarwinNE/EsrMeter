@@ -2180,8 +2180,7 @@ valid_read      movfw       OLDW        ; This speeds up the search for the
                 skpz
                 goto        skpq
                 movfw       FLAG
-                skpz
-                goto        skpq
+                skpnz
                 decf        FREQ,f      ; Decrease the frequency
 skpq            decf        FREQ,f      ; Decrease the frequency
 cont_cycle      movfw       CURW        ; Save the value of CURW.
