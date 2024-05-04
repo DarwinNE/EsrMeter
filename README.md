@@ -8,6 +8,6 @@ The circuit has been designed by Davide Bucci, the PCB by Etenmenanki using Eagl
 A description (in italian language) of the circuit can be found here: https://www.electroyou.it/darwinne/wiki/misurare-esr-di-condensatori-con-circuito-lock-in
 
 Two versions of the PCB exist. The first one has the digital and analog parts split in two. This approach has the advantage that one can test the analog board with something different from the PIC16F883 (i.e. a STM32 or an Arduino board, for instance). The version with the two boards separated requires some corrections, look at the associated files if you try to build them.
-The second version has all digital and analog circuits on the same board and it is much more compact. I ordered the PCB on July 24, 2022, but I haven't yet put together the circuit to test it.
+The second version has all digital and analog circuits on the same board and it is much more compact. I ordered the PCB on July 24, 2022, I received them and assembled a first prototype at the end of August 2022. It worked at the first attempt, but there is a shift in low ESR values and moderate to large capacitance (>300µF) that I am currently (mid Sept 2022) investigating.
 
 All components are SMD. In the "all in one" boards, two different versions of the PIC16F883 can be used to cope with the pandemic scarcity of components: SOIC and SSOP. I think the PIC16F886 can be used at the place of the PIC16F883 with minimal changes.
